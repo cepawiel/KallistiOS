@@ -82,7 +82,7 @@ RUN printf "Installing Cmake...$NL" \
 WORKDIR /src
 
 # Activate user
-USER dev
+# USER dev
 
 # Run any command passed in a bash shell with the KOS environment loaded
 ENTRYPOINT ["/usr/local/bin/entry.sh"]
