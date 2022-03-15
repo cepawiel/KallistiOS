@@ -79,7 +79,7 @@ ARG KOS_GCC_VER=9
 # First stage: Pre-built GCC cross-compiler toolchain to build KOS
 #
 
-FROM ghcr.io/cepawiel/dc-gcc-toolchain:latest as toolchain
+FROM ghcr.io/cepawiel/dc-gcc-toolchain:gcc${KOS_GCC_VER}-latest as toolchain
 FROM ghcr.io/cepawiel/dc-gcc-prereqs:latest as builder
 LABEL maintainer "Colton Pawielski <cepawiel@mtu.edu>"
 LABEL org.opencontainers.image.source https://github.com/cepawiel/KallistiOS

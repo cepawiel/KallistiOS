@@ -8,23 +8,18 @@ on:
     #   - 'gcc-toolchain/**'
     #   - 'kos-toolchain/**'
     #   - 'kos-toolchain-cmake/**'
-    
+
+
 jobs:
   # define job to build and publish containers
-  build-container-sh4-toolchain-deps:
-    name: Build Container for SH4 GCC Build Deps
+  build-gcc-deps-container:
+    name: Build Container of SH4 GCC Build Prerequisites
     runs-on: ubuntu-latest
-
-    outputs:
-      outcome: ${{ steps.status.outcome }}
 
     # steps to perform in job
     steps:
       - name: Checkout Source
         uses: actions/checkout@v2
-        with:
-          # get preciding commit for use with changed-files
-          fetch-depth: 2
 
       # setup Docker build action
       - name: Set up Docker Buildx
@@ -39,18 +34,9 @@ jobs:
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
       
-      # get changed files
-      - id: changed-files
-        uses: tj-actions/changed-files@v18
-        with:
-          files: |
-            ./.github/workflows/containers.yaml
-            ./utils/containers/gcc-prereqs/Dockerfile
-
       # only build if any if files were changed
       - name: Build+Push dc-gcc-prereqs
         id: build-image
-        if: steps.changed-files.outputs.any_changed == 'true'
         uses: docker/build-push-action@v2
         with:
           context: ./utils/containers/gcc-prereqs
@@ -58,17 +44,17 @@ jobs:
             ghcr.io/cepawiel/dc-gcc-prereqs:latest
           push: true
 
-      # set output variable
-      - id: status
-        run: echo "::set-output name=outcome::${{steps.build-image.outcome}}"
-
-  build-container-sh4-toolchain:
-    needs: build-container-sh4-toolchain-deps
+  build-gcc-container:
+    needs: build-gcc-deps-container
     name: Build Container for SH4 GCC
     runs-on: ubuntu-latest
 
     outputs:
       outcome: ${{ steps.status.outcome }}
+
+    strategy:
+      matrix:
+        gcc: [4, 9]
 
     # steps to perform in job
     steps:
@@ -77,8 +63,6 @@ jobs:
         with:
           # get preciding commit for use with changed-files
           fetch-depth: 2
-
-      - run: echo 
 
       # setup Docker build action
       - name: Set up Docker Buildx
@@ -105,27 +89,33 @@ jobs:
       - name: Build+Push dc-gcc-toolchain
         id: build-image
         if: |
-          steps.changed-files.outputs.any_changed == 'true' ||
-          ${{ needs.build-container-sh4-toolchain-deps.outputs.outcome }} == 'success'
+          steps.changed-files.outputs.any_changed == 'true'
         uses: docker/build-push-action@v2
         with:
           context: ./utils/containers/gcc-toolchain
+          build-args: KOS_GCC_VER=${{ matrix.gcc }}
           tags: |
-            ghcr.io/cepawiel/dc-gcc-toolchain:latest
+            ghcr.io/cepawiel/dc-gcc-toolchain:gcc${{ matrix.gcc }}-latest
+            ghcr.io/cepawiel/dc-gcc-toolchain:gcc${{ matrix.gcc }}-${{github.sha}}
           push: true
 
       # set output variable
       - id: status
+        name: Set Container Status Output Variable
         run: echo "::set-output name=outcome::${{steps.build-image.outcome}}"
 
   # TODO: Seperate out ports from this image
-  build-container-kos-toolchain:
-    needs: build-container-sh4-toolchain
-    name: Build Container for KOS GCC
+  build-kos-base-container:
+    needs: build-gcc-container
+    name: Build Container for KOS
     runs-on: ubuntu-latest
 
     outputs:
       outcome: ${{ steps.status.outcome }}
+
+    strategy:
+      matrix:
+        gcc: [4, 9]
 
     # steps to perform in job
     steps:
@@ -155,22 +145,26 @@ jobs:
           files: |
             ./.github/workflows/containers.yaml
             ./utils/dc-chain/**
-            ./utils/containers/kos-toolchain/Dockerfile
+            ./utils/containers/kos-base/Dockerfile
 
-      - name: Build+Push dc-kos-toolchain
+      - name: Build+Push dc-kos-base
         id: build-image
+        # only run if files changed or toolchain was rebuilt
         if: |
           steps.changed-files.outputs.any_changed == 'true' ||
-          ${{ needs.build-container-sh4-toolchain.outputs.outcome }} == 'success'
+          ${{ needs.build-gcc-container.outputs.outcome }} == 'success'
         uses: docker/build-push-action@v2
         with:
-          context: ./utils/containers/kos-toolchain
+          context: ./utils/containers/kos-base
+          build-args: KOS_GCC_VER=${{ matrix.gcc }}
           tags: |
-            ghcr.io/cepawiel/dc-kos-toolchain:latest
+            ghcr.io/cepawiel/dc-kos-base:gcc${{ matrix.gcc }}-latest
+            ghcr.io/cepawiel/dc-kos-base:gcc${{ matrix.gcc }}-${{github.sha}}
           push: true
 
       # set output variable
       - id: status
+        name: Set Container Status Output Variable
         run: echo "::set-output name=outcome::${{steps.build-image.outcome}}"
 
   # TODO: create image with ports
