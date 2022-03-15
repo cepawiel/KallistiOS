@@ -77,6 +77,19 @@ jobs:
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
       
+      - name: Generate Container Tags
+        id: container-meta
+        uses: docker/metadata-action@v3
+        with:
+          images: ghcr.io/cepawiel/dc-gcc-toolchain
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - run: echo ${{ steps.container-meta.output }}
+
       # get changed files
       - id: changed-files
         uses: tj-actions/changed-files@v18
@@ -94,6 +107,7 @@ jobs:
         with:
           context: ./utils/containers/gcc-toolchain
           build-args: KOS_GCC_VER=${{ matrix.gcc }}
+          # tags: ${{ steps.container-meta.outputs.tags }}
           tags: |
             ghcr.io/cepawiel/dc-gcc-toolchain:gcc${{ matrix.gcc }}-latest
             ghcr.io/cepawiel/dc-gcc-toolchain:gcc${{ matrix.gcc }}-${{github.sha}}
