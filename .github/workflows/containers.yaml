@@ -34,14 +34,24 @@ jobs:
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
       
+      - name: Generate Container Tags
+        id: tag-gen
+        uses: docker/metadata-action@v3
+        with:
+          # list of Docker images to use as base name for tags
+          images: ghcr.io/cepawiel/dc-gcc-prereqs
+          # Docker tags based on the following events/attributes
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
+
       # only build if any if files were changed
       - name: Build+Push dc-gcc-prereqs
         id: build-image
         uses: docker/build-push-action@v2
         with:
           context: ./utils/containers/gcc-prereqs
-          tags: |
-            ghcr.io/cepawiel/dc-gcc-prereqs:latest
+          tags: ${{ steps.tag-gen.outputs.tags }}
           push: true
 
   build-gcc-container:
@@ -77,19 +87,6 @@ jobs:
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
       
-      - name: Generate Container Tags
-        id: container-meta
-        uses: docker/metadata-action@v3
-        with:
-          images: ghcr.io/cepawiel/dc-gcc-toolchain
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - run: echo ${{ steps.container-meta.output }}
-
       # get changed files
       - id: changed-files
         uses: tj-actions/changed-files@v18
@@ -99,6 +96,18 @@ jobs:
             ./utils/dc-chain/**
             ./utils/container/gcc-toolchain/Dockerfile
 
+      - name: Generate Container Tags
+        id: tag-gen
+        uses: docker/metadata-action@v3
+        with:
+          # list of Docker images to use as base name for tags
+          images: ghcr.io/cepawiel/dc-gcc-toolchain
+          # Docker tags based on the following events/attributes
+          tags: |
+            type=raw,enable=${{ matrix.gcc == 9 }},value=latest
+            type=raw,value=gcc${{matrix.gcc}}-latest
+            type=sha,prefix=gcc${{matrix.gcc}}-,format=long
+
       - name: Build+Push dc-gcc-toolchain
         id: build-image
         if: |
@@ -107,10 +116,7 @@ jobs:
         with:
           context: ./utils/containers/gcc-toolchain
           build-args: KOS_GCC_VER=${{ matrix.gcc }}
-          # tags: ${{ steps.container-meta.outputs.tags }}
-          tags: |
-            ghcr.io/cepawiel/dc-gcc-toolchain:gcc${{ matrix.gcc }}-latest
-            ghcr.io/cepawiel/dc-gcc-toolchain:gcc${{ matrix.gcc }}-${{github.sha}}
+          tags: ${{ steps.tag-gen.outputs.tags }}
           push: true
 
       # set output variable
@@ -161,6 +167,18 @@ jobs:
             ./utils/dc-chain/**
             ./utils/containers/kos-base/Dockerfile
 
+      - name: Generate Container Tags
+        id: tag-gen
+        uses: docker/metadata-action@v3
+        with:
+          # list of Docker images to use as base name for tags
+          images: ghcr.io/cepawiel/dc-kos-base
+          # Docker tags based on the following events/attributes
+          tags: |
+            type=raw,enable=${{ matrix.gcc == 9 }},value=latest
+            type=raw,value=gcc${{matrix.gcc}}-latest
+            type=sha,prefix=gcc${{matrix.gcc}}-,format=long
+
       - name: Build+Push dc-kos-base
         id: build-image
         # only run if files changed or toolchain was rebuilt
@@ -171,9 +189,7 @@ jobs:
         with:
           context: ./utils/containers/kos-base
           build-args: KOS_GCC_VER=${{ matrix.gcc }}
-          tags: |
-            ghcr.io/cepawiel/dc-kos-base:gcc${{ matrix.gcc }}-latest
-            ghcr.io/cepawiel/dc-kos-base:gcc${{ matrix.gcc }}-${{github.sha}}
+          tags: ${{ steps.tag-gen.outputs.tags }}
           push: true
 
       # set output variable
