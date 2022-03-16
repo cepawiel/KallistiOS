@@ -193,3 +193,36 @@ jobs:
 
   # TODO: create image with ports
   # TODO: Image with cmake
+
+  build-examples:
+    name: Build KOS Examples
+    needs: build-kos-base-container
+    
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        gcc: [4, 9]
+
+    steps: 
+      - name: Checkout Source
+        uses: actions/checkout@v2
+
+      - name: Build Examples
+        uses: cepawiel/kos-container-action@v0
+        with:
+          tag: gcc${{ matrix.gcc }}-latest
+          run: |
+            cd examples/
+            make
+
+      - name: Upload Example ELFs
+        uses: actions/upload-artifact@v3
+        with:
+          name: Examples GCC${{ matrix.gcc }}
+          path: examples/**/*.elf
+
+
+
+
+  
