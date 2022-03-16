@@ -3,12 +3,6 @@ name: Build Docker Images
 on:
   push:
     branches: [master]
-    # paths:
-    #   - 'gcc-base/**'
-    #   - 'gcc-toolchain/**'
-    #   - 'kos-toolchain/**'
-    #   - 'kos-toolchain-cmake/**'
-
 
 jobs:
   # define job to build and publish containers
