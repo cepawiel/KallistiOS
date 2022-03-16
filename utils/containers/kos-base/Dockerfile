@@ -253,7 +253,8 @@ RUN \
     && apt upgrade -y \
     && apt install -y --no-install-recommends --no-upgrade \
         bash bzip2 genisoimage coreutils curl gawk git \
-        patch sed subversion tar tree wget make meson \
+        patch sed subversion tar tree wget make meson \ 
+        libpng16-16 libjpeg62-turbo \
     && echo "dash dash/sh boolean false" | debconf-set-selections \
     && dpkg-reconfigure --frontend=noninteractive dash \
     && apt clean \
