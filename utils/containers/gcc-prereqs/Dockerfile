@@ -37,8 +37,10 @@ RUN \
     && printf ". /etc/profile\n" > ~/.bashrc \
 \
     # Create verbose output toggle script used in child images (file can be appended to by child images to store more environment variables)
-    && printf 'if $VERBOSE; then\n  export REDIRECT="/dev/stdout";\n  export NL="\\n";\nelse\n  export REDIRECT="/dev/null";\n  export NL="";\nfi\n' > /tmp/dockerenv.sh \
-    && chmod a+x /tmp/dockerenv.sh
+    && printf '#!/bin/bash\n' > /tmp/dockerenv.sh \
+    && printf 'if $VERBOSE; then\n  export REDIRECT="/dev/stdout";\n  export NL="\\n";\nelse\n  export REDIRECT="/dev/null";\n  export NL="";\nfi\n' >> /tmp/dockerenv.sh \
+    && chmod a+x /tmp/dockerenv.sh \
+    && cat /tmp/dockerenv.sh
 
 # Default to /src directory
 WORKDIR /src
