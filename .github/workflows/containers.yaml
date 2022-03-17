@@ -212,7 +212,9 @@ jobs:
         uses: cepawiel/kos-container-action@v0
         with:
           tag: gcc${{ matrix.gcc }}-latest
+          # need to install host gcc to compile some examples and libc6-dev for stdio.h
           run: |
+            apt-get install -y --no-install-recommends gcc libc6-dev
             cd examples/
             make
 
