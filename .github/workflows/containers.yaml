@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
 
+
 jobs:
   # define job to build and publish containers
   build-gcc-deps-container:
@@ -48,7 +49,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./utils/containers/gcc-prereqs
-          build-args: VERBOSE=true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.tag-gen.outputs.tags }}
           push: true
@@ -72,6 +72,9 @@ jobs:
         with:
           # get preciding commit for use with changed-files
           fetch-depth: 2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
 
       # setup Docker build action
       - name: Set up Docker Buildx
@@ -117,7 +120,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             KOS_GCC_VER=${{ matrix.gcc }}
-            VERBOSE=true
           tags: ${{ steps.tag-gen.outputs.tags }}
           push: true
 
@@ -146,6 +148,9 @@ jobs:
         with:
           # get preciding commit for use with changed-files
           fetch-depth: 2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
 
       # setup Docker build action
       - name: Set up Docker Buildx
@@ -193,7 +198,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             KOS_GCC_VER=${{ matrix.gcc }}
-            VERBOSE=true
           tags: ${{ steps.tag-gen.outputs.tags }}
           push: true
 
@@ -218,6 +222,9 @@ jobs:
     steps: 
       - name: Checkout Source
         uses: actions/checkout@v2
+
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@v1
 
       - name: Build Examples
         uses: cepawiel/kos-container-action@v0

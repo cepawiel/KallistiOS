@@ -181,19 +181,18 @@ RUN \
     # Download and unpack compiler toolchain
     . /tmp/dockerenv.sh \
     && cd $DC_CHAIN \
+    && ls -la /usr/local/sbin/ \
+    && /usr/bin/env bash \
     && printf "Downloading compiler toolchain...$NL" \
-    # && $DC_CHAIN/download.sh &> $REDIRECT \
-    && $DC_CHAIN/download.sh \
+    && $DC_CHAIN/download.sh &> $REDIRECT \
     && printf "Done.\nUnpacking compiler toolchain...$NL" \
-    # && $DC_CHAIN/unpack.sh &> $REDIRECT \
-    && $DC_CHAIN/unpack.sh \
+    && $DC_CHAIN/unpack.sh &> $REDIRECT \
     && printf "Done.\n"
 RUN \
     # Patch compiler toolchain
     . /tmp/dockerenv.sh \
     && printf "Patching compiler toolchain...$NL" \
-    # && make -C $DC_CHAIN patch &> $REDIRECT \
-    && make -C $DC_CHAIN patch \
+    && make -C $DC_CHAIN patch &> $REDIRECT \
     && printf "Done.\n"
 RUN \
     # Update arch detection when building GCC 4 for linux/arm64 platform
