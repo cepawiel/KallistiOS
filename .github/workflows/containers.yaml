@@ -14,7 +14,7 @@ jobs:
     # steps to perform in job
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       # - name: Set up QEMU
       #   uses: docker/setup-qemu-action@v1
@@ -68,7 +68,7 @@ jobs:
     # steps to perform in job
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # get preciding commit for use with changed-files
           fetch-depth: 2
@@ -144,7 +144,7 @@ jobs:
     # steps to perform in job
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # get preciding commit for use with changed-files
           fetch-depth: 2
@@ -221,7 +221,7 @@ jobs:
 
     steps: 
       - name: Checkout Source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Build Examples
         uses: cepawiel/kos-container-action@v0
