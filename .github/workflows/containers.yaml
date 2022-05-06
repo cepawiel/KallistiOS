@@ -34,7 +34,7 @@ jobs:
       
       - name: Generate Container Tags
         id: tag-gen
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
           # list of Docker images to use as base name for tags
           images: ghcr.io/cepawiel/dc-gcc-prereqs
@@ -100,7 +100,7 @@ jobs:
 
       - name: Generate Container Tags
         id: tag-gen
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
           # list of Docker images to use as base name for tags
           images: ghcr.io/cepawiel/dc-gcc-toolchain
@@ -176,7 +176,7 @@ jobs:
 
       - name: Generate Container Tags
         id: tag-gen
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
           # list of Docker images to use as base name for tags
           images: ghcr.io/cepawiel/dc-kos-base
