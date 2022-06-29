@@ -46,7 +46,7 @@ jobs:
       # only build if any if files were changed
       - name: Build+Push dc-gcc-prereqs
         id: build-image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: ./utils/containers/gcc-prereqs
           # platforms: linux/amd64,linux/arm64
@@ -114,7 +114,7 @@ jobs:
         id: build-image
         if: |
           steps.changed-files.outputs.any_changed == 'true'
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: ./utils/containers/gcc-toolchain
           # platforms: linux/amd64,linux/arm64
@@ -192,7 +192,7 @@ jobs:
         if: |
           steps.changed-files.outputs.any_changed == 'true' ||
           ${{ needs.build-gcc-container.outputs.outcome }} == 'success'
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: ./utils/containers/kos-base
           # platforms: linux/amd64,linux/arm64
