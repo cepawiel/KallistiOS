@@ -91,7 +91,7 @@ jobs:
       
       # get changed files
       - id: changed-files
-        uses: tj-actions/changed-files@v18
+        uses: tj-actions/changed-files@v23
         with:
           files: |
             ./.github/workflows/containers.yaml
@@ -167,7 +167,7 @@ jobs:
       
      # get changed files
       - id: changed-files
-        uses: tj-actions/changed-files@v18
+        uses: tj-actions/changed-files@v23
         with:
           files: |
             ./.github/workflows/containers.yaml
