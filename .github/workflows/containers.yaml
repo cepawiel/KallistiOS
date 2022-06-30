@@ -22,7 +22,7 @@ jobs:
       # setup Docker build action
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
       # authenticate with GHCR
       - name: Login to GHCR
@@ -79,7 +79,7 @@ jobs:
       # setup Docker build action
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
       # authenticate with GHCR
       - name: Login to GHCR
@@ -155,7 +155,7 @@ jobs:
       # setup Docker build action
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
       # authenticate with GHCR
       - name: Login to GHCR
