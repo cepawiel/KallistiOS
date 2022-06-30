@@ -11,7 +11,7 @@ all:
 	$(KOS_MAKE) -C asserthnd
 	$(KOS_MAKE) -C stacktrace
 	$(KOS_MAKE) -C mmu
-	$(KOS_MAKE) -C stackprotector
+#	$(KOS_MAKE) -C stackprotector
 
 clean:
 	$(KOS_MAKE) -C exec clean
@@ -20,7 +20,7 @@ clean:
 	$(KOS_MAKE) -C asserthnd clean
 	$(KOS_MAKE) -C stacktrace clean
 	$(KOS_MAKE) -C mmu clean
-	$(KOS_MAKE) -C stackprotector clean
+#	$(KOS_MAKE) -C stackprotector clean
 
 dist:
 	$(KOS_MAKE) -C exec dist
@@ -29,6 +29,6 @@ dist:
 	$(KOS_MAKE) -C asserthnd dist
 	$(KOS_MAKE) -C stacktrace dist
 	$(KOS_MAKE) -C mmu dist
-	$(KOS_MAKE) -C stackprotector dist
+#	$(KOS_MAKE) -C stackprotector dist
 
 
