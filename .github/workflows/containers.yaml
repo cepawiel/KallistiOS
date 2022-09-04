@@ -32,7 +32,7 @@ jobs:
   build-gcc-kos-container:
     name: Build GCC for KOS Container
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Download artifacts (Docker images) from previous workflows
         uses: actions/download-artifact@v2
