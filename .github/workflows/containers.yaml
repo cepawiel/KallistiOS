@@ -19,12 +19,22 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./.github/workflows/Dockerfile-gcc-build-deps
+          file: ./.github/workflows/gcc-build-deps/Dockerfile
           tags: kos-gcc-build-deps:latest
-          outputs: type=oci,dest=/tmp/image.tar
+          outputs: type=docker,dest=/tmp/image.tar
 
       - name: Upload Container Artifact
         uses: actions/upload-artifact@v2
         with:
           name: gcc-build-deps
           path: /tmp/image.tar
+
+  build-gcc-kos-container:
+   - name: Download artifacts (Docker images) from previous workflows
+        uses: actions/download-artifact@v2
+
+      - name: Load Docker images from previous workflows
+        run: |
+          docker load --input gcc-build-deps/image.tar 
+
+      - run: docker image ls

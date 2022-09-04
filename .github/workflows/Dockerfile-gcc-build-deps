@@ -1,6 +1,0 @@
-
-FROM ubuntu:22.10
-
-COPY . /opt/toolchains/dc/kos/
-
-RUN ls -la /opt/toolchains/dc/kos/
