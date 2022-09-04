@@ -50,7 +50,7 @@ jobs:
 
       - run: docker image ls
 
-      - run: buildx inspect
+      - run: docker buildx inspect
 
       - name: Build and Export Container
         uses: docker/build-push-action@v2
