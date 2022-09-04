@@ -70,8 +70,8 @@ jobs:
         with: 
           driver: docker-container
 
-      - name: Download Images
-        run: docker pull localhost:5000/kos/gcc-build-deps:latest
+      # - name: Download Images
+        # run: docker pull localhost:5000/kos/gcc-build-deps:latest
 
       - name: Load Docker images from previous workflows
         run: docker load --input gcc-build-deps/image.tar 
