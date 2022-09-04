@@ -19,7 +19,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./Dockerfile-gcc-build-deps
+          file: ./.github/workflows/Dockerfile-gcc-build-deps
           tags: kos-gcc-build-deps:latest
           outputs: type=oci,dest=/tmp/image.tar
 
