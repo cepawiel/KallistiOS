@@ -20,7 +20,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile-gcc-build-deps
-          tags: ${{ github.repository }}-gcc-build-deps:latest
+          tags: $kos-gcc-build-deps:latest
           outputs: type=oci,dest=/tmp/image.tar
 
       - name: Upload Container Artifact
