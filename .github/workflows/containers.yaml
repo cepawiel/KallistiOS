@@ -6,13 +6,19 @@ jobs:
   build-gcc-deps-container:
     name: Create GCC Build Deps Container
     runs-on: ubuntu-latest
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
+    # services:
+    #   registry:
+    #     image: registry:2
+    #     ports:
+    #       - 5000:5000
 
     steps:
+      - run: |
+            apt install qemu-user-static \
+            && docker run --rm --privileged multiarch/qemu-user-static --reset -p yes \
+            && sudo systemctl restart docker \
+            && docker builder inspect --bootstrap
+
       - name: Checkout Source
         uses: actions/checkout@v3
 
@@ -62,7 +68,7 @@ jobs:
       # - name: Load Docker images from previous workflows
       #   run: docker load --input gcc-build-deps/image.tar 
       # - run: docker image ls
-      # - run: docker buildx inspect
+      - run: docker buildx inspect
 
       - name: Build and Export Container
         uses: docker/build-push-action@v2
