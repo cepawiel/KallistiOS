@@ -36,7 +36,7 @@ jobs:
           context: .
           file: ./.github/workflows/gcc-build-deps/Dockerfile
           tags: kos/gcc-build-deps:latest
-          push: true
+          # push: true
           # tags: localhost:5000/kos/gcc-build-deps:latest
           outputs: type=docker,dest=/tmp/image.tar
 
