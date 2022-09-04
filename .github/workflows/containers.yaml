@@ -32,6 +32,7 @@ jobs:
   build-gcc-kos-container:
     name: Build GCC for KOS Container
     runs-on: ubuntu-latest
+    needs: build-gcc-deps-container
 
     steps:
       - name: Download artifacts (Docker images) from previous workflows
