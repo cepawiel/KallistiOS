@@ -30,11 +30,11 @@ jobs:
           path: /tmp/image.tar
 
   build-gcc-kos-container:
-   - name: Download artifacts (Docker images) from previous workflows
-        uses: actions/download-artifact@v2
+    - name: Download artifacts (Docker images) from previous workflows
+      uses: actions/download-artifact@v2
 
-      - name: Load Docker images from previous workflows
-        run: |
+    - name: Load Docker images from previous workflows
+      run: |
           docker load --input gcc-build-deps/image.tar 
 
-      - run: docker image ls
+    - run: docker image ls
