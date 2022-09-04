@@ -1,6 +1,6 @@
 
 FROM ubuntu:22.10
 
-COPY . /src/KallistiOS
+COPY . /opt/toolchains/dc/kos/
 
-RUN ls -la /src/KallistiOS
+RUN ls -la /opt/toolchains/dc/kos/
