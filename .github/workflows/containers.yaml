@@ -41,14 +41,14 @@ jobs:
       - name: Download Container Artifacts
         uses: actions/download-artifact@v2
 
+      - name: Setup Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Load Docker images from previous workflows
         run: docker load --input gcc-build-deps/image.tar 
 
       - run: docker image ls
-
-      - name: Setup Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v2
 
       - name: Build and Export Container
         uses: docker/build-push-action@v2
