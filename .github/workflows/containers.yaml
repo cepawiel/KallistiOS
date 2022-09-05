@@ -2,11 +2,6 @@ name: Build Docker Images
 
 on: [push]
 
-env:
-  PUSH_REGISTRY: localhost:5000
-  GCC_TAG_BASE: ${{ github.actor }}/sh4-gcc-patched-kos:latest
-  KOS_TAG_BASE: ${{ github.actor }}/kos:latest
-
 jobs:
   # idea from here https://stackoverflow.com/questions/70249519/how-to-check-if-a-secret-variable-is-empty-in-if-conditional-github-actions
   check-secrets:
@@ -36,8 +31,9 @@ jobs:
       # IS_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
       IS_RELEASE: true
       
-      GCC_CONTAINER_TAG: ${{ env.PUSH_REGISTRY }}/${{ env.GCC_TAG_BASE }}
-      KOS_CONTAINER_TAG: ${{ env.PUSH_REGISTRY }}/${{ env.KOS_TAG_BASE }}
+      LOCAL_REGISTRY: localhost:5000
+      GCC_TAG_BASE: ${{ github.actor }}/sh4-gcc-patched-kos:latest
+      KOS_TAG_BASE: ${{ github.actor }}/kos:latest
 
       UPLOAD_REGISTRY: ghcr.io
 
@@ -61,11 +57,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build GCC Container
+        id: gcc-build
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ${{ env.CONTAINER_FOLDER }}/gcc-build-kos/Dockerfile
-          tags: ${{ env.GCC_CONTAINER_TAG }}
+          tags: ${{ LOCAL_REGISTRY }}/${{ GCC_TAG_BASE }}
           push: true
 
       # Could test the built tools here, but building
@@ -86,7 +83,7 @@ jobs:
         uses: akhilerm/tag-push-action@v2.0.0
         if: ${{ env.IS_RELEASE }}
         with:
-          src: ${{ env.GCC_CONTAINER_TAG }}
+          src: ${{ gcc-build.outputs.digest }}
           dst: |
             ${{ steps.meta.outputs.tags }}
 
@@ -98,6 +95,6 @@ jobs:
           context: .
           file: ${{ env.CONTAINER_FOLDER }}/kos/Dockerfile
           build-args: |
-            PRE_NAME:${{ env.PUSH_REGISTRY }}/${{ github.actor }}
-          tags: ${{ env.KOS_CONTAINER_TAG }}
+            PRE_NAME:${{ env.LOCAL_REGISTRY }}/${{ github.actor }}
+          tags: ${{ LOCAL_REGISTRY }}/${{ GCC_TAG_BASE }}
           push: true
