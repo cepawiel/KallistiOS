@@ -1,6 +1,6 @@
 # syntax = edrevo/dockerfile-plus
 
-INCLUDE+ ./.github/containers/workflows/gcc-build-deps/Dockerfile
+INCLUDE+ ./.github/workflows/containers/gcc-build-deps/Dockerfile
 
 SHELL ["/bin/bash", "-c"]
 
