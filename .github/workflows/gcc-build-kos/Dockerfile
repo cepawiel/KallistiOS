@@ -1,4 +1,7 @@
-FROM kos/gcc-build-deps:latest
+
+ARG PARENT_CONTAINER=kos/gcc-build-deps:latest
+
+FROM ${PARENT_CONTAINER}
 
 
 SHELL ["/bin/bash", "-c"]
