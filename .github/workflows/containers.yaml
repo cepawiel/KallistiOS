@@ -5,6 +5,7 @@ on: [push]
 jobs:
   # idea from here https://stackoverflow.com/questions/70249519/how-to-check-if-a-secret-variable-is-empty-in-if-conditional-github-actions
   check-secrets:
+    name: Checking if Github Token is Provided
     runs-on: ubuntu-latest
     outputs:
       github-token-exists: ${{ steps.check-gh-token.outputs.defined }}
