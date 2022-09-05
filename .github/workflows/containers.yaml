@@ -67,8 +67,9 @@ jobs:
       - name: Setup Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
-        with: 
-          driver: docker-container
+        with:
+          driver-opts: network=host
+        #   driver: docker-container
 
       # - name: Download Images
         # run: docker pull localhost:5000/kos/gcc-build-deps:latest
