@@ -31,12 +31,12 @@ jobs:
       CONTAINER_FOLDER: ./.github/workflows/containers
       # IS_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
       IS_RELEASE: true
-      
+
       GCC_TAG_BASE: ${{ github.actor }}/sh4-gcc-patched-kos:latest
       KOS_TAG_BASE: ${{ github.actor }}/kos:latest
 
-      GCC_CONTAINER_TAG: ${{ env.PUSH_REGISTRY }}/${{ GCC_TAG_BASE }}
-      KOS_CONTAINER_TAG: ${{ env.PUSH_REGISTRY }}/${{ KOS_TAG_BASE }}
+      GCC_CONTAINER_TAG: ${{ PUSH_REGISTRY }}/${{ GCC_TAG_BASE }}
+      KOS_CONTAINER_TAG: ${{ PUSH_REGISTRY }}/${{ KOS_TAG_BASE }}
 
       UPLOAD_REGISTRY: ghcr.io
 
