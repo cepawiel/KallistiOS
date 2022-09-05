@@ -99,7 +99,8 @@ verbose=1
 # clear this variable and try again with just one job running.
 # Please note, this value may be overriden in some cases; as issues were
 # detected on some OS.
-makejobs=-j$(nproc)
+# makejobs=-j$(nproc)
+makejobs=-j1
 
 # Languages (c|c++|objc|obj-c++)
 # Set the languages to build for pass 2 of building gcc for sh-elf. The default
