@@ -83,7 +83,7 @@ jobs:
         uses: akhilerm/tag-push-action@v2.0.0
         if: ${{ env.IS_RELEASE }}
         with:
-          src: ${{ gcc-build.outputs.digest }}
+          src: ${{ steps.gcc-build.outputs.digest }}
           dst: |
             ${{ steps.meta.outputs.tags }}
 
@@ -96,5 +96,5 @@ jobs:
           file: ${{ env.CONTAINER_FOLDER }}/kos/Dockerfile
           build-args: |
             PRE_NAME:${{ env.LOCAL_REGISTRY }}/${{ github.actor }}
-          tags: ${{ LOCAL_REGISTRY }}/${{ GCC_TAG_BASE }}
+          tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_TAG_BASE }}
           push: true
