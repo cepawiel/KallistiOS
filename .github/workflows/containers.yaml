@@ -45,7 +45,7 @@ jobs:
           file: ./.github/workflows/containers/gcc-build-kos/Dockerfile
           # build-args: |
           #     BUILD_CORES=${{ steps.cpu-cores.outputs.count }}
-          tags: ${{ jobs.build-gcc-kos-container.env.PUSH_REGISTRY }}/$GITHUB_ACTOR/sh4-gcc-patched-kos:latest
+          tags: ${{ env.PUSH_REGISTRY }}/$GITHUB_ACTOR/sh4-gcc-patched-kos:latest
           # outputs: type=oci,dest=/tmp/toolchain.tar
           push: true
 
@@ -56,8 +56,8 @@ jobs:
           context: .
           file: ./.github/workflows/containers/kos/Dockerfile
           build-args: |
-            SRC_REGISTRY:${{ jobs.build-gcc-kos-container.env.PUSH_REGISTRY }}
-          tags: ${{ jobs.build-gcc-kos-container.env.PUSH_REGISTRY }}/$GITHUB_ACTOR/kos:latest
+            SRC_REGISTRY:${{ env.PUSH_REGISTRY }}
+          tags: ${{ env.PUSH_REGISTRY }}/$GITHUB_ACTOR/kos:latest
           push: true
           # outputs: type=oci, 
 
