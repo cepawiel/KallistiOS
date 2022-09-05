@@ -36,7 +36,7 @@ jobs:
           context: .
           file: ./.github/workflows/gcc-build-deps/Dockerfile
           push: true
-          tags: localhost:5000/kos/gcc-build-deps:latest
+          tags: registry:5000/kos/gcc-build-deps:latest
           # tags: kos/gcc-build-deps:latest
           # outputs: type=docker,dest=/tmp/image.tar
 
@@ -86,7 +86,7 @@ jobs:
           file: ./.github/workflows/gcc-build-kos/Dockerfile
           build-args: |
             PARENT_CONTAINER=localhost:5000/kos/gcc-build-deps:lastest
-          tags: localhost:5000/kos/gcc-build-kos:latest
+          tags: registry:5000/kos/gcc-build-kos:latest
           # tags: kos/gcc-build-kos:latest
           # outputs: type=docker,dest=/tmp/image.tar
 
