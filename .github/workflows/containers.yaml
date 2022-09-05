@@ -8,6 +8,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Get number of CPU cores
+        uses: SimenB/github-actions-cpu-cores@v1
+        id: cpu-cores
+
       # - run: |
       #       sudo apt install qemu-user-static \
       #       && docker run --rm --privileged multiarch/qemu-user-static --reset -p yes \
@@ -20,8 +24,9 @@ jobs:
       - name: Setup Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
-        # with:
-        #   driver-opts: network=host
+        with:
+          # increase max log size
+          driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
 
       # - run: docker buildx inspect
 
@@ -32,8 +37,7 @@ jobs:
           context: .
           file: ./.github/workflows/gcc-build-kos/Dockerfile
           # build-args: |
-          #   PARENT_CONTAINER=localhost:5000/kos/gcc-build-deps:lastest
-          # tags: localhost:5000/kos/gcc-build-kos:latest
+          #     BUILD_CORES=${{ steps.cpu-cores.outputs.count }}
           tags: kos/gcc-build-kos:latest
           outputs: type=docker,dest=/tmp/image.tar
 
