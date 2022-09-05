@@ -44,7 +44,7 @@ jobs:
       - name: Setup Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
-        with:
+        # with:
           # increase max log size necessary if building toolchain verbose
           # driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
 
@@ -62,7 +62,7 @@ jobs:
         with:
           context: .
           file: ${{ env.CONTAINER_FOLDER }}/gcc-build-kos/Dockerfile
-          tags: ${{ LOCAL_REGISTRY }}/${{ GCC_TAG_BASE }}
+          tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_TAG_BASE }}
           push: true
 
       # Could test the built tools here, but building
@@ -73,7 +73,7 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            ${{ env.UPLOAD_REGISTRY }}/${{ GCC_TAG_BASE }}
+            ${{ env.UPLOAD_REGISTRY }}/${{ env.GCC_TAG_BASE }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
             type=sha
