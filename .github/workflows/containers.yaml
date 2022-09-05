@@ -2,6 +2,11 @@ name: Build Docker Images
 
 on: [push]
 
+env:
+  PUSH_REGISTRY: localhost:5000
+  GCC_TAG_BASE: ${{ github.actor }}/sh4-gcc-patched-kos:latest
+  KOS_TAG_BASE: ${{ github.actor }}/kos:latest
+
 jobs:
   # idea from here https://stackoverflow.com/questions/70249519/how-to-check-if-a-secret-variable-is-empty-in-if-conditional-github-actions
   check-secrets:
@@ -23,22 +28,16 @@ jobs:
     needs: [check-secrets]
     services:
       registry:
-        env: |
-          PUSH_REGISTRY: localhost:5000
         image: registry:2
         ports:
           - 5000:5000
     env:
-      
       CONTAINER_FOLDER: ./.github/workflows/containers
       # IS_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
       IS_RELEASE: true
-
-      GCC_TAG_BASE: ${{ github.actor }}/sh4-gcc-patched-kos:latest
-      KOS_TAG_BASE: ${{ github.actor }}/kos:latest
-
-      GCC_CONTAINER_TAG: ${{ services.registry.env.PUSH_REGISTRY }}/${{ GCC_TAG_BASE }}
-      KOS_CONTAINER_TAG: ${{ services.registry.env.PUSH_REGISTRY }}/${{ KOS_TAG_BASE }}
+      
+      GCC_CONTAINER_TAG: ${{ env.PUSH_REGISTRY }}/${{ env.GCC_TAG_BASE }}
+      KOS_CONTAINER_TAG: ${{ env.PUSH_REGISTRY }}/${{ env.KOS_TAG_BASE }}
 
       UPLOAD_REGISTRY: ghcr.io
 
