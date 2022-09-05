@@ -56,7 +56,7 @@ jobs:
           context: .
           file: ./.github/workflows/containers/kos/Dockerfile
           build-args: |
-            SRC_REGISTRY=$PUSH_REGISTRY
+            SRC_REGISTRY:$PUSH_REGISTRY
           tags: $PUSH_REGISTRY/${{ GITHUB_ACTOR }}/kos:latest
           push: true
           # outputs: type=oci, 
