@@ -73,9 +73,9 @@ jobs:
       # - name: Download Images
         # run: docker pull localhost:5000/kos/gcc-build-deps:latest
 
-      - name: Load Docker images from previous workflows
-        run: docker load --input gcc-build-deps/image.tar 
-      - run: docker image ls
+      # - name: Load Docker images from previous workflows
+      #   run: docker load --input gcc-build-deps/image.tar 
+      # - run: docker image ls
       - run: docker buildx inspect
 
       - name: Build and Export Container
