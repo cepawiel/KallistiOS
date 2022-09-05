@@ -1,8 +1,6 @@
+# syntax = edrevo/dockerfile-plus
 
-ARG PARENT_CONTAINER=kos/gcc-build-deps:latest
-
-FROM ${PARENT_CONTAINER}
-
+INCLUDE+ ./.github/workflows/gcc-build-deps/Dockerfile
 
 SHELL ["/bin/bash", "-c"]
 
