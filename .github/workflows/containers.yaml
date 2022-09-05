@@ -12,7 +12,7 @@ jobs:
         ports:
           - 5000:5000
     env:
-      PUSH_REGISTRY:localhost:5000
+      PUSH_REGISTRY: localhost:5000
 
     steps:
       # - run: |
