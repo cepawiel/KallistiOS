@@ -7,7 +7,6 @@ SHELL ["/bin/bash", "-c"]
 COPY . ${KOS_BASE}
 
 WORKDIR ${KOS_BASE}
-RUN pwd
 
 RUN apt-get update \
     && apt-get upgrade -y \

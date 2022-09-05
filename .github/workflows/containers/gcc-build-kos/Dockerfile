@@ -1,10 +1,10 @@
 # syntax = edrevo/dockerfile-plus
 
-INCLUDE+ ./.github/workflows/gcc-build-deps/Dockerfile
+INCLUDE+ ./.github/containers/workflows/gcc-build-deps/Dockerfile
 
 SHELL ["/bin/bash", "-c"]
 
-COPY .github/workflows/gcc-build-kos/config.mk ${KOS_BASE}/utils/dc-chain/config.mk
+COPY .github/workflows/containers/gcc-build-kos/config.mk ${KOS_BASE}/utils/dc-chain/config.mk
 
 WORKDIR ${KOS_BASE}/utils/dc-chain
 

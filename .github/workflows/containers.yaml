@@ -6,6 +6,13 @@ jobs:
   build-gcc-kos-container:
     name: Build GCC for KOS Container
     runs-on: ubuntu-latest
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    env:
+      PUSH_REGISTRY=localhost:5000
 
     steps:
       # - run: |
@@ -24,21 +31,38 @@ jobs:
           # increase max log size
           driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
 
-      # - run: docker buildx inspect
+      # - name: Login to Github Container Registry
+      #   uses: docker/login-action@v2
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Export Container
+      - name: Build GCC Container
         uses: docker/build-push-action@v2
         with:
-          # load: true
           context: .
-          file: ./.github/workflows/gcc-build-kos/Dockerfile
+          file: ./.github/workflows/containers/gcc-build-kos/Dockerfile
           # build-args: |
           #     BUILD_CORES=${{ steps.cpu-cores.outputs.count }}
-          tags: kos/gcc-build-kos:latest
-          outputs: type=docker,dest=/tmp/image.tar
+          tags: $PUSH_REGISTRY/${{ GITHUB_ACTOR }}/sh4-gcc-patched-kos:latest
+          # outputs: type=oci,dest=/tmp/toolchain.tar
+          push: true
 
-      - name: Upload Container Artifact
-        uses: actions/upload-artifact@v2
+
+      - name: Build KOS Container
+        uses: docker/build-push-action@v2
         with:
-          name: gcc-build-kos
-          path: /tmp/image.tar
+          context: .
+          file: ./.github/workflows/containers/kos/Dockerfile
+          build-args: |
+            SRC_REGISTRY=$PUSH_REGISTRY
+          tags: $PUSH_REGISTRY/${{ GITHUB_ACTOR }}/kos:latest
+          push: true
+          # outputs: type=oci, 
+
+      # - name: Upload Container Artifact
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: gcc-build-kos
+      #     path: /tmp/toolchain.tar
