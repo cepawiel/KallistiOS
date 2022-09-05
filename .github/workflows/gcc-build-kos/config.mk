@@ -89,7 +89,7 @@ erase=1
 
 # Verbose (1|0)
 # Display output to screen as well as log files
-verbose=1
+verbose=0
 
 # Make jobs (-jn|<empty>)
 # Set this value to -jn where n is the number of jobs you want to run with make.
