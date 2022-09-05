@@ -1,6 +1,6 @@
-ARG SRC_REGISTRY=
+ARG PRE_NAME=local_dev
 
-FROM ${SRC_REGISTRY}/cepawiel/sh4-gcc-patched-kos:latest
+FROM ${PRE_NAME}/sh4-gcc-patched-kos:latest
 
 RUN ls -la
 

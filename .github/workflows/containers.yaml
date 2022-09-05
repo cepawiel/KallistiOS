@@ -3,9 +3,23 @@ name: Build Docker Images
 on: [push]
 
 jobs:
+  # idea from here https://stackoverflow.com/questions/70249519/how-to-check-if-a-secret-variable-is-empty-in-if-conditional-github-actions
+  check-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      github-token-exists: ${{ steps.check-gh-token.outputs.defined }}
+    steps:
+        - id: check-gh-token
+          env:
+            GH_TOK: ${{ secrets.GITHUB_TOKEN }}
+          if: "${{ env.GH_TOK != '' }}"
+          run: echo "::set-output name=defined::true"
+          
+
   build-gcc-kos-container:
     name: Build GCC for KOS Container
     runs-on: ubuntu-latest
+    needs: [check-secrets]
     services:
       registry:
         image: registry:2
@@ -13,6 +27,7 @@ jobs:
           - 5000:5000
     env:
       PUSH_REGISTRY: localhost:5000
+      CONTAINER_FOLDER: ./.github/workflows/containers
 
     steps:
       # - run: |
@@ -31,38 +46,28 @@ jobs:
           # increase max log size
           driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
 
-      # - name: Login to Github Container Registry
-      #   uses: docker/login-action@v2
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to Github Container Registry
+        if: needs.check-secrets.outputs.github-token-exists == 'true'
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build GCC Container
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./.github/workflows/containers/gcc-build-kos/Dockerfile
-          # build-args: |
-          #     BUILD_CORES=${{ steps.cpu-cores.outputs.count }}
+          file: ${{ env.CONTAINER_FOLDER }}/gcc-build-kos/Dockerfile
           tags: ${{ env.PUSH_REGISTRY }}/${{ github.actor }}/sh4-gcc-patched-kos:latest
-          # outputs: type=oci,dest=/tmp/toolchain.tar
           push: true
-
 
       - name: Build KOS Container
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./.github/workflows/containers/kos/Dockerfile
+          file: ${{ env.CONTAINER_FOLDER }}/kos/Dockerfile
           build-args: |
-            SRC_REGISTRY:${{ env.PUSH_REGISTRY }}
+            PRE_NAME:${{ env.PUSH_REGISTRY }}/${{ github.actor }}
           tags: ${{ env.PUSH_REGISTRY }}/${{ github.actor }}/kos:latest
           push: true
-          # outputs: type=oci, 
-
-      # - name: Upload Container Artifact
-      #   uses: actions/upload-artifact@v2
-      #   with:
-      #     name: gcc-build-kos
-      #     path: /tmp/toolchain.tar
