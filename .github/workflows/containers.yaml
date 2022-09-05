@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       registry:
-        image: registry:latest
+        image: localhost:latest
         ports:
           - 5000:5000
 
@@ -86,7 +86,7 @@ jobs:
           file: ./.github/workflows/gcc-build-kos/Dockerfile
           build-args: |
             PARENT_CONTAINER=localhost:5000/kos/gcc-build-deps:lastest
-          tags: registry:5000/kos/gcc-build-kos:latest
+          tags: localhost:5000/kos/gcc-build-kos:latest
           # tags: kos/gcc-build-kos:latest
           # outputs: type=docker,dest=/tmp/image.tar
 
