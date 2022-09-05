@@ -12,7 +12,7 @@ jobs:
         ports:
           - 5000:5000
     env:
-      PUSH_REGISTRY=localhost:5000
+      PUSH_REGISTRY:localhost:5000
 
     steps:
       # - run: |
@@ -45,7 +45,7 @@ jobs:
           file: ./.github/workflows/containers/gcc-build-kos/Dockerfile
           # build-args: |
           #     BUILD_CORES=${{ steps.cpu-cores.outputs.count }}
-          tags: $PUSH_REGISTRY/${{ GITHUB_ACTOR }}/sh4-gcc-patched-kos:latest
+          tags: $PUSH_REGISTRY/$GITHUB_ACTOR/sh4-gcc-patched-kos:latest
           # outputs: type=oci,dest=/tmp/toolchain.tar
           push: true
 
