@@ -44,7 +44,8 @@ jobs:
       - name: Setup Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
-        # with:
+        with:
+          driver-opts: network=host
           # increase max log size necessary if building toolchain verbose
           # driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
 
