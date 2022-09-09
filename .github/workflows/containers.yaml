@@ -32,7 +32,7 @@ jobs:
 
   gcc-build-deps:
     env:
-      DO_RELEASE: ${{ check-secrets.outputs.github-token-exists == 'true' }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
+      DO_RELEASE: ${{ jobs.check-secrets.outputs.github-token-exists == 'true' }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
 
     name: Create Build Environment for GCC
     runs-on: ubuntu-latest
