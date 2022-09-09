@@ -3,15 +3,6 @@ name: Build Docker Images
 on: [push]
 
 jobs:
-  env:
-    UPLOAD_REGISTRY: ghcr.io
-
-    GCC_DEPS_TAG_BASE: ${{ github.actor }}/gcc-build-deps:latest
-    GCC_KOS_TAG_BASE: ${{ github.actor }}/sh-gcc-patched-kos:latest
-    KOS_TAG_BASE: ${{ github.actor }}/kos:latest
-
-    CONTAINER_FOLDER: ./.github/workflows/containers
-
   # idea from here https://stackoverflow.com/questions/70249519/how-to-check-if-a-secret-variable-is-empty-in-if-conditional-github-actions
   check-secrets:
     name: Checking if Github Token is Provided
@@ -25,7 +16,14 @@ jobs:
           if: "${{ env.GH_TOK != '' }}"
           run: echo "::set-output name=defined::true"
           
-  env: 
+  env:
+    UPLOAD_REGISTRY: ghcr.io
+
+    GCC_DEPS_TAG_BASE: ${{ github.actor }}/gcc-build-deps:latest
+    GCC_KOS_TAG_BASE: ${{ github.actor }}/sh-gcc-patched-kos:latest
+    KOS_TAG_BASE: ${{ github.actor }}/kos:latest
+
+    CONTAINER_FOLDER: ./.github/workflows/containers
     # DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
     DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
 
