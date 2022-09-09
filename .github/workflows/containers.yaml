@@ -10,9 +10,6 @@ env:
   KOS_TAG_BASE: ${{ github.actor }}/kos:latest
 
   CONTAINER_FOLDER: ./.github/workflows/containers
-  # DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
-  DO_RELEASE: ${{ (jobs.check-secrets.outputs.github-token-exists == 'true') }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
-
 
 jobs:
   # idea from here https://stackoverflow.com/questions/70249519/how-to-check-if-a-secret-variable-is-empty-in-if-conditional-github-actions
@@ -27,6 +24,10 @@ jobs:
             GH_TOK: ${{ secrets.GITHUB_TOKEN }}
           if: "${{ env.GH_TOK != '' }}"
           run: echo "::set-output name=defined::true"
+
+  env:
+    # DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
+    DO_RELEASE: ${{ (jobs.check-secrets.outputs.github-token-exists == 'true') }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
 
 
   gcc-build-deps:
