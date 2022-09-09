@@ -100,7 +100,7 @@ verbose=0
 # Please note, this value may be overriden in some cases; as issues were
 # detected on some OS.
 # makejobs=-j$(nproc)
-makejobs=-j1
+makejobs=-j4
 
 # Languages (c|c++|objc|obj-c++)
 # Set the languages to build for pass 2 of building gcc for sh-elf. The default

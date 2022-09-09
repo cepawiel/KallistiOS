@@ -1,6 +1,6 @@
-# syntax = edrevo/dockerfile-plus
+ARG PRE_NAME=local_dev
 
-INCLUDE+ ./.github/workflows/containers/gcc-build-deps/Dockerfile
+FROM ${PRE_NAME}/gcc-build-deps:latest
 
 SHELL ["/bin/bash", "-c"]
 

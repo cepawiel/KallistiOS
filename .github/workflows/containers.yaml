@@ -2,6 +2,18 @@ name: Build Docker Images
 
 on: [push]
 
+env:
+  UPLOAD_REGISTRY: ghcr.io
+
+  GCC_DEPS_TAG_BASE: ${{ github.actor }}/gcc-build-deps:latest
+  GCC_KOS_TAG_BASE: ${{ github.actor }}/sh-gcc-patched-kos:latest
+  KOS_TAG_BASE: ${{ github.actor }}/kos:latest
+
+  CONTAINER_FOLDER: ./.github/workflows/containers
+
+  # DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
+  DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
+
 jobs:
   # idea from here https://stackoverflow.com/questions/70249519/how-to-check-if-a-secret-variable-is-empty-in-if-conditional-github-actions
   check-secrets:
@@ -16,26 +28,10 @@ jobs:
           if: "${{ env.GH_TOK != '' }}"
           run: echo "::set-output name=defined::true"
           
-
-  build-gcc-kos-container:
-    name: Build GCC for KOS Container
+  gcc-build-deps:
+    name: Create Build Environment for GCC
     runs-on: ubuntu-latest
     needs: [check-secrets]
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
-    env:
-      CONTAINER_FOLDER: ./.github/workflows/containers
-      # IS_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
-      IS_RELEASE: true
-      
-      LOCAL_REGISTRY: localhost:5000
-      GCC_TAG_BASE: ${{ github.actor }}/sh4-gcc-patched-kos:latest
-      KOS_TAG_BASE: ${{ github.actor }}/kos:latest
-
-      UPLOAD_REGISTRY: ghcr.io
 
     steps:
       - name: Checkout Source
@@ -50,52 +46,113 @@ jobs:
           # driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
 
       - name: Login to Github Container Registry
-        if: ${{ env.IS_RELEASE }}
+        if: ${{ env.DO_RELEASE }}
         uses: docker/login-action@v2
         with:
           registry: ${{ env.UPLOAD_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build GCC Container
-        id: gcc-build
+      - name: Build GCC Buil Deps Container
+        id: gcc-build-deps-container
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ${{ env.CONTAINER_FOLDER }}/gcc-build-kos/Dockerfile
-          tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_TAG_BASE }}
-          push: true
+          file: ${{ env.CONTAINER_FOLDER }}/gcc-build-deps/Dockerfile
+          tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_DEPS_TAG_BASE }}
+          push: ${{ env.DO_RELEASE }}
+          outputs: type=docker,dest=/tmp/gcc-build-deps.tar
 
-      # Could test the built tools here, but building
-      # KOS will be a safe enough test for now
-
-      - name: Generate Image Tags
-        id: meta
-        uses: docker/metadata-action@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
         with:
-          images: |
-            ${{ env.UPLOAD_REGISTRY }}/${{ env.GCC_TAG_BASE }}
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
-            type=sha
+          name: gcc-build-deps
+          path: /tmp/gcc-build-deps.tar
+    
 
-      - # copy image from local reg to GHCR
-        name: Release GCC Image to GHCR
-        uses: akhilerm/tag-push-action@v2.0.0
-        if: ${{ env.IS_RELEASE }}
-        with:
-          src: ${{ steps.gcc-build.outputs.digest }}
-          dst: | 
-            ${{ steps.meta.outputs.tags }}
+  # build-gcc-kos-container:
+  #   name: Build GCC for KOS Container
+  #   runs-on: ubuntu-latest
+  #   needs: [check-secrets]
+  #   services:
+  #     registry:
+  #       image: registry:2
+  #       ports:
+  #         - 5000:5000
+  #   env:      
+  #     LOCAL_REGISTRY: localhost:5000
+
+  #   steps:
+  #     - name: Checkout Source
+  #       uses: actions/checkout@v3
+
+  #     - name: Setup Docker Buildx
+  #       id: buildx
+  #       uses: docker/setup-buildx-action@v2
+  #       with:
+  #         driver-opts: network=host
+  #         # increase max log size necessary if building toolchain verbose
+  #         # driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
+
+  #     - name: Login to Github Container Registry
+  #       if: ${{ env.DO_RELEASE }}
+  #       uses: docker/login-action@v2
+  #       with:
+  #         registry: ${{ env.UPLOAD_REGISTRY }}
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
+
+  #     # TODO: reuse this container
+  #     - name: Build GCC Prereqs Container
+  #       id: gcc-build-prereqs
+  #       uses: docker/build-push-action@v2
+  #       with:
+  #         context: .
+  #         file: ${{ env.CONTAINER_FOLDER }}/gcc-build-deps/Dockerfile
+  #         tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_DEPS_TAG_BASE }}
+  #         push: true
+
+  #     - name: Build GCC Container
+  #       id: gcc-build
+  #       uses: docker/build-push-action@v2
+  #       with:
+  #         context: .
+  #         file: ${{ env.CONTAINER_FOLDER }}/gcc-build-kos/Dockerfile
+  #         build-args: |
+  #           PRE_NAME:${{ env.LOCAL_REGISTRY }}/${{ github.actor }}
+  #         tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_TAG_BASE }}
+  #         push: true
+
+  #     # Could test the built tools here, but building
+  #     # KOS will be a safe enough test for now
+
+  #     - name: Generate Image Tags
+  #       id: meta
+  #       uses: docker/metadata-action@v4
+  #       with:
+  #         images: |
+  #           ${{ env.UPLOAD_REGISTRY }}/${{ env.GCC_TAG_BASE }}
+  #         tags: |
+  #           type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+  #           type=sha
+
+  #     # - # copy image from local reg to GHCR
+  #     #   name: Release GCC Image to GHCR
+  #     #   uses: akhilerm/tag-push-action@v2.0.0
+  #     #   if: ${{ env.DO_RELEASE }}
+  #     #   with:
+  #     #     src: ${{ steps.gcc-build.outputs.digest }}
+  #     #     dst: | 
+  #     #       ${{ steps.meta.outputs.tags }}
 
 
 
-      - name: Build KOS Container
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ${{ env.CONTAINER_FOLDER }}/kos/Dockerfile
-          build-args: |
-            PRE_NAME:${{ env.LOCAL_REGISTRY }}/${{ github.actor }}
-          tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_TAG_BASE }}
-          push: true
+  #     - name: Build KOS Container
+  #       uses: docker/build-push-action@v2
+  #       with:
+  #         context: .
+  #         file: ${{ env.CONTAINER_FOLDER }}/kos/Dockerfile
+  #         build-args: |
+  #           PRE_NAME:${{ env.LOCAL_REGISTRY }}/${{ github.actor }}
+  #         tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_TAG_BASE }}
+  #         push: true
