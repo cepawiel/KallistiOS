@@ -80,7 +80,7 @@ jobs:
     needs: [gcc-build-deps]
     env:
       DO_RELEASE: ${{ needs.gcc-build-deps.env.DO_RELEASE }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
-check
+
     steps:
       - name: Checkout Source
         uses: actions/checkout@v3
