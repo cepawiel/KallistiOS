@@ -27,7 +27,7 @@ jobs:
 
   env:
     # DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
-    DO_RELEASE: ${{ (jobs.check-secrets.outputs.github-token-exists == 'true') }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
+    DO_RELEASE: ${{ check-secrets.outputs.github-token-exists == 'true' }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
 
 
   gcc-build-deps:
