@@ -11,7 +11,7 @@ env:
 
   CONTAINER_FOLDER: ./.github/workflows/containers
   # DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
-  DO_RELEASE: ${{ (needs.check-secrets.outputs.github-token-exists == 'true') }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
+  DO_RELEASE: ${{ (jobs.check-secrets.outputs.github-token-exists == 'true') }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
 
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
           if: "${{ env.GH_TOK != '' }}"
           run: echo "::set-output name=defined::true"
 
-      
+
   gcc-build-deps:
     name: Create Build Environment for GCC
     runs-on: ubuntu-latest
