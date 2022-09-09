@@ -25,6 +25,9 @@ jobs:
           if: "${{ env.GH_TOK != '' }}"
           run: echo "::set-output name=defined::true"
 
+  #########################################################################
+  ## Build Container with Build Deps for GCC
+  #########################################################################
   gcc-build-deps:
     name: Create Build Environment for GCC
     runs-on: ubuntu-latest
@@ -52,7 +55,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build GCC Buil Deps Container
+      - name: Build GCC Build Deps Container
         id: gcc-build-deps-container
         uses: docker/build-push-action@v2
         with:
@@ -68,6 +71,62 @@ jobs:
           name: gcc-build-deps
           path: /tmp/gcc-build-deps.tar
     
+  #########################################################################
+  ## Build GCC for KOS
+  #########################################################################
+  gcc-build-deps:
+    name: Create GCC for KOS Container
+    runs-on: ubuntu-latest
+    needs: [gcc-build-deps]
+    env:
+      DO_RELEASE: ${{ needs.gcc-build-deps.env.DO_RELEASE }} # && (github.ref == 'refs/heads/master') && (github.event_name != 'pull_request') }}
+check
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v3
+
+      - name: Setup Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver-opts: network=host
+          # increase max log size necessary if building toolchain verbose
+          # driver-opts: env.BUILDKIT_STEP_LOG_MAX_SIZE=10485760
+
+      - name: Login to Github Container Registry
+        if: ${{ env.DO_RELEASE }}
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.UPLOAD_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: gcc-build-deps
+          path: /tmp
+      -
+        name: Load image
+        run: |
+          docker load --input /tmp/myimage.tar
+          docker image ls -a
+
+      # - name: Build GCC Build Deps Container
+      #   id: gcc-build-deps-container
+      #   uses: docker/build-push-action@v2
+      #   with:
+      #     context: .
+      #     file: ${{ env.CONTAINER_FOLDER }}/gcc-build-deps/Dockerfile
+      #     tags: ${{ env.GCC_DEPS_TAG_BASE }}
+      #     # push: ${{ env.DO_RELEASE }}
+      #     outputs: type=docker,dest=/tmp/gcc-build-deps.tar
+
+      # - name: Upload artifact
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: gcc-build-deps
+      #     path: /tmp/gcc-build-deps.tar
 
   # build-gcc-kos-container:
   #   name: Build GCC for KOS Container
