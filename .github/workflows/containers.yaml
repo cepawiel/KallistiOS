@@ -74,7 +74,7 @@ jobs:
   #########################################################################
   ## Build GCC for KOS
   #########################################################################
-  gcc-build-deps:
+  gcc-for-kos:
     name: Create GCC for KOS Container
     runs-on: ubuntu-latest
     needs: [gcc-build-deps]
