@@ -66,7 +66,7 @@ jobs:
           context: .
           file: ${{ env.CONTAINER_FOLDER }}/gcc-build-deps/Dockerfile
           tags: ${{ env.LOCAL_REGISTRY }}/${{ env.GCC_DEPS_TAG_BASE }}
-          output: type=docker,dest=/tmp/build-deps.tar
+          outputs: type=docker,dest=/tmp/build-deps.tar
           # push: true
 
       - uses: actions/upload-artifact@v3
