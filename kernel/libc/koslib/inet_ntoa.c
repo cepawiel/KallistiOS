@@ -6,6 +6,7 @@
 */
 
 #include <arpa/inet.h>
+#include <arch/types.h>
 
 char *inet_ntoa(struct in_addr addr) {
     static char str[16]; /* XXX.XXX.XXX.XXX = 15 chars + 1 for NUL */

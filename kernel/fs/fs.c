@@ -51,8 +51,9 @@ typedef struct fs_hnd {
 /* The global file descriptor table */
 fs_hnd_t * fd_table[FD_SETSIZE] = { NULL };
 
+// FALSE!!!
 /* For some reason, Newlib doesn't seem to define this function in stdlib.h. */
-extern char *realpath(const char *, const char *);
+// extern char *realpath(const char *, const char *);
 
 
 /* Internal file commands for root dir reading */

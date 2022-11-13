@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <sys/queue.h>
+#include <sys/fcntl.h>
 
 #include <kos/fs.h>
 #include <kos/mutex.h>

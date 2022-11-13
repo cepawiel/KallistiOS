@@ -24,7 +24,7 @@
 #include <sys/cdefs.h>
 __BEGIN_DECLS
 
-#include <sys/_types.h>
+#include <arch/types.h>
 
 #ifdef BYTE_ORDER
 /* If we've included <arch/types.h>, this might already be defined... */

@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <string.h>
+#include <arch/types.h>
 
 static const char *inet_ntop4(const void *src, char *dst, socklen_t size) {
     char tmp[3];

@@ -32,46 +32,46 @@ struct sched_param {
 #include <kos/tls.h>
 #include <kos/once.h>
 
-// Missing structs we don't care about in this impl.
-/** \brief  POSIX mutex attributes.
+// // Missing structs we don't care about in this impl.
+// /** \brief  POSIX mutex attributes.
 
-    Not implemented in KOS.
+//     Not implemented in KOS.
 
-    \headerfile sys/sched.h
-*/
-typedef struct {
-    // Empty
-} pthread_mutexattr_t;
+//     \headerfile sys/sched.h
+// */
+// typedef struct {
+//     // Empty
+// } pthread_mutexattr_t;
 
-/** \brief  POSIX condition variable attributes.
+// /** \brief  POSIX condition variable attributes.
 
-    Not implemented in KOS.
+//     Not implemented in KOS.
 
-    \headerfile sys/sched.h
-*/
-typedef struct {
-    // Empty
-} pthread_condattr_t;
+//     \headerfile sys/sched.h
+// */
+// typedef struct {
+//     // Empty
+// } pthread_condattr_t;
 
-/** \brief  POSIX thread attributes.
+// /** \brief  POSIX thread attributes.
 
-    Not implemented in KOS.
+//     Not implemented in KOS.
 
-    \headerfile sys/sched.h
-*/
-typedef struct {
-    // Empty
-} pthread_attr_t;
+//     \headerfile sys/sched.h
+// */
+// typedef struct {
+//     // Empty
+// } pthread_attr_t;
 
-// Map over KOS types. The mutex/condvar maps have to be pointers
-// because we allow _INIT #defines to work.
-typedef kthread_t * pthread_t;      /**< \brief POSIX thread type */
-typedef mutex_t pthread_mutex_t;    /**< \brief POSIX mutex type */
-typedef condvar_t pthread_cond_t;   /**< \brief POSIX condition type */
+// // Map over KOS types. The mutex/condvar maps have to be pointers
+// // because we allow _INIT #defines to work.
+// typedef kthread_t * pthread_t;      /**< \brief POSIX thread type */
+// typedef mutex_t pthread_mutex_t;    /**< \brief POSIX mutex type */
+// typedef condvar_t pthread_cond_t;   /**< \brief POSIX condition type */
 
-// These, on the other hand, map right over.
-typedef kthread_once_t pthread_once_t;  /**< \brief POSIX once control */
-typedef kthread_key_t pthread_key_t;    /**< \brief POSIX thread data key */
+// // These, on the other hand, map right over.
+// typedef kthread_once_t pthread_once_t;  /**< \brief POSIX once control */
+// typedef kthread_key_t pthread_key_t;    /**< \brief POSIX thread data key */
 
 __END_DECLS
 
