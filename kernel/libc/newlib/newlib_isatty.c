@@ -6,7 +6,7 @@
 
 */
 
-#include <sys/reent.h>
+// #include <sys/reent.h>
 
 int isatty(int fd) {
     /* Make sure that stdin, stdout, and stderr are shown as ttys, otherwise

@@ -14,6 +14,8 @@
 
 #include <kos.h>
 
+KOS_INIT_FLAGS(INIT_DEFAULT | INIT_MALLOCSTATS | INIT_NO_DCLOAD );
+
 /* Semaphore used for timing below */
 semaphore_t sem;
 

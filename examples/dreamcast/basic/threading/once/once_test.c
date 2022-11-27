@@ -37,9 +37,10 @@ void *thd_func(void *param UNUSED) {
     return NULL;
 }
 
-KOS_INIT_FLAGS(INIT_DEFAULT);
+KOS_INIT_FLAGS(INIT_DEFAULT | INIT_MALLOCSTATS | INIT_NO_DCLOAD );
 
 int main(int argc, char *argv[]) {
+    printf("Program Start\n");
     int i;
     kthread_t *thds[THD_COUNT];
 

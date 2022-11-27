@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <sys/time.h>
+#include <sys/sched.h>
 
 /* Condition Variable Initialization Attributes, P1003.1c/Draft 10, p. 96 */
 

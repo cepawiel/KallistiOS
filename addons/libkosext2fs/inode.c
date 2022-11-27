@@ -15,6 +15,7 @@
 #include <sys/queue.h>
 #include <inttypes.h>
 #include <time.h>
+#include <kos/dbglog.h>
 
 #include "inode.h"
 #include "utils.h"

@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/sched.h>
 
 /* Thread Creation, P1003.1c/Draft 10, p. 144 */
 

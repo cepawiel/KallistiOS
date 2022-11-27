@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/queue.h>
 #include <dc/sound/sound.h>
+#include <kos/dbglog.h>
 
 /*
 

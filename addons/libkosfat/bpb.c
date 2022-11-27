@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <kos/dbglog.h>
 
 #include "fatfs.h"
 #include "fatinternal.h"

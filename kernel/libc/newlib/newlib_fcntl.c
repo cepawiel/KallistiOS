@@ -5,7 +5,7 @@
 
 */
 
-#include <sys/reent.h>
+// #include <sys/reent.h>
 #include <sys/fcntl.h>
 #include <stdarg.h>
 

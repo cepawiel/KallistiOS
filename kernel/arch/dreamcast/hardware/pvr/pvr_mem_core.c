@@ -32,7 +32,7 @@
  */
 
 #include "pvr_mem_core.h"
-
+#include <stdio.h>
 #include <kos/opts.h>
 
 #undef DEBUG

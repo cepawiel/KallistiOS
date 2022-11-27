@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <kos/dbglog.h>
 #include <dc/net/broadband_adapter.h>
 #include <dc/asic.h>
 #include <dc/g2bus.h>

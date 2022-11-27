@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <kos/dbglog.h>
 
 #include "superblock.h"
 #include "inode.h"

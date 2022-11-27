@@ -18,6 +18,7 @@
 #include <arch/arch.h>
 #include <arch/irq.h>
 #include <stdio.h>
+#include <kos/dbglog.h>
 
 /* The end of the program is always marked by the '_end' symbol. So we'll
    longword-align that and add a little for safety. sbrk() calls will
@@ -46,6 +47,7 @@ void* mm_sbrk(unsigned long increment) {
 
     sbrk_base = (void *)(increment + (unsigned long)sbrk_base);
 
+    //                         0x8CFF0000
     if(((uint32)sbrk_base) >= (0x8d000000 - 65536)) {
         dbglog(DBG_DEAD, "Requested sbrk_base %p, was %p, diff %lu\n",
                sbrk_base, base, increment);

@@ -12,6 +12,7 @@
 #include <stdio.h>
 
 #include <kos/sem.h>
+#include <kos/dbglog.h>
 #include <arch/timer.h>
 #include <dc/g2bus.h>
 #include <dc/spu.h>

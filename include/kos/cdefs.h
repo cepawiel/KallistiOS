@@ -106,7 +106,7 @@
 #if __GNUC__ >= 7
 /** \brief  Identify a case statement that is expected to fall through to the
             statement underneath it. */
-#define __fallthrough __attribute__((__fallthrough__))
+#define __fallthrough ;__attribute__((__fallthrough__))
 #else
 #define __fallthrough /* Fall through */
 #endif

@@ -22,6 +22,7 @@
 #include <dc/sound/sound.h>
 #include <dc/sound/stream.h>
 #include <dc/sound/sfxmgr.h>
+#include <kos/dbglog.h>
 
 #include "arm/aica_cmd_iface.h"
 

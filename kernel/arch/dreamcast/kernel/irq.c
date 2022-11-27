@@ -16,6 +16,7 @@
 #include <kos/dbgio.h>
 #include <kos/thread.h>
 #include <kos/library.h>
+#include <kos/dbglog.h>
 
 /* Exception table -- this table matches (EXPEVT>>4) to a function pointer.
    If the pointer is null, then nothing happens. Otherwise, the function will

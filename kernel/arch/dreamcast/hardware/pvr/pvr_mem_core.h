@@ -533,6 +533,7 @@ Void_t* memcpy();
 #endif
 #endif */
 
+#include <kos/dbglog.h>
 #define MALLOC_FAILURE_ACTION \
     dbglog(DBG_ERROR, "pvr_mem: ERROR -- out of PVR memory; texture heap probably corrupted\n");
 

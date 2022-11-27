@@ -16,6 +16,7 @@
 #include <dc/net/lan_adapter.h>
 #include <arch/irq.h>
 #include <kos/net.h>
+#include <kos/dbglog.h>
 
 /*
 

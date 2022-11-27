@@ -6,7 +6,7 @@
 */
 
 #include <stdlib.h>
-#include <reent.h>
+// #include <reent.h>
 
 // We have to provide these for Newlib's reent pieces.
 

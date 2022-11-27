@@ -19,6 +19,7 @@
 #include <kos/limits.h>
 #include <kos/sem.h>
 #include <kos/genwait.h>
+#include <kos/dbglog.h>
 
 /**************************************/
 

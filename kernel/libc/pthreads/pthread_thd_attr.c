@@ -1,5 +1,6 @@
 #include <pthread.h>
 #include <errno.h>
+#include <sys/sched.h>
 
 /* Thread Creation Scheduling Attributes, P1003.1c/Draft 10, p. 120 */
 

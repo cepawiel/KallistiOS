@@ -215,7 +215,7 @@ int rotang = 0;
 #define mult 64
 float cubesizes[6] = { 0.0f };
 int tmpframe = 0;
-void draw_cube(int which) {
+void draw_cube_c(int which) {
     int cp;
     int ra, ra2;
     float x, y, z, tx, ty, tz;

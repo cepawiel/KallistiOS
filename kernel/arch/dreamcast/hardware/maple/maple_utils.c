@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <dc/maple.h>
+#include <kos/dbglog.h>
 
 /* Enable / Disable the bus */
 void maple_bus_enable() {

@@ -47,7 +47,7 @@ int hardware_periph_init() {
 
 #ifndef _arch_sub_naomi
     /* Init CD-ROM.. NOTE: NO GD-ROM SUPPORT. ONLY CDs/CDRs. */
-    cdrom_init();
+    // cdrom_init();
 #endif
 
     /* Setup maple bus */

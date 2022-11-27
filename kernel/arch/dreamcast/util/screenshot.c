@@ -10,6 +10,7 @@
 #include <string.h>
 #include <dc/video.h>
 #include <kos/fs.h>
+#include <kos/dbglog.h>
 #include <arch/irq.h>
 
 /*

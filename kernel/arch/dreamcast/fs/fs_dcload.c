@@ -22,6 +22,7 @@ printf goes to the dc-tool console
 #include <arch/spinlock.h>
 #include <kos/dbgio.h>
 #include <kos/fs.h>
+#include <kos/dbglog.h>
 
 #include <errno.h>
 #include <stdio.h>

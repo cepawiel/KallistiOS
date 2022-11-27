@@ -13,6 +13,7 @@
 #include <sys/queue.h>
 #include <kos/net.h>
 #include <kos/thread.h>
+#include <kos/dbglog.h>
 #include <arch/timer.h>
 #include <arpa/inet.h>
 #include "net_icmp.h"

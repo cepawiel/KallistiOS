@@ -12,10 +12,9 @@
 #include <arch/rtc.h>
 
 /* This is kind of approximate and works only with "localtime" */
-int _gettimeofday_r(void * re, struct timeval *tv, struct timezone *tz) {
+int gettimeofday(struct timeval *__restrict tv, void *__restrict tz) {
     uint32  m, s;
 
-    (void)re;
     (void)tz;
 
     assert(tv != NULL);

@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <kos/thread.h>
+#include <kos/dbglog.h>
 #include <dc/pvr.h>
 #include <dc/sq.h>
 #include "pvr_internal.h"

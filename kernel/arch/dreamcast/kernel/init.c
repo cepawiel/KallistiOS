@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <kos/dbgio.h>
+#include <kos/dbglog.h>
 #include <arch/timer.h>
 #include <arch/arch.h>
 #include <arch/irq.h>
@@ -59,6 +60,58 @@ dbgio_handler_t * dbgio_handlers[] = {
 };
 int dbgio_handler_cnt = sizeof(dbgio_handlers) / sizeof(dbgio_handler_t *);
 
+#pragma GCC push_options
+#pragma GCC optimize ("-O0")
+
+int sum_testing_o0(int count, ...) 
+{
+    int sum = 0;
+    va_list args;
+    va_start(args, count);
+    for (int i = 0; i < count; ++i) {
+        int num = va_arg(args, int);
+        sum += num;
+    }
+    va_end(args);
+    return sum;
+}
+
+#pragma GCC pop_options
+
+#pragma GCC push_options
+#pragma GCC optimize ("-O1")
+
+int sum_testing_o1(int count, ...) 
+{
+    int sum = 0;
+    va_list args;
+    va_start(args, count);
+    for (int i = 0; i < count; ++i) {
+        int num = va_arg(args, int);
+        sum += num;
+    }
+    va_end(args);
+    return sum;
+}
+
+#pragma GCC pop_options
+
+#pragma GCC push_options
+#pragma GCC optimize ("-O1")
+
+void sum_test() 
+{
+    printf("%d\n", sum_testing_o0(5, 0, 1, 2, 3, 4));
+    printf("%d\n", sum_testing_o1(5, 0, 1, 2, 3, 4));
+}
+
+#pragma GCC pop_options
+
+#pragma GCC push_options
+#pragma GCC optimize ("-O0")
+
+#pragma GCC pop_options
+
 /* Auto-init stuff: override with a non-weak symbol if you don't want all of
    this to be linked into your code (and do the same with the
    arch_auto_shutdown function too). */
@@ -95,6 +148,9 @@ int  __attribute__((weak)) arch_auto_init() {
         dbgio_write_str("\n--\n");
         dbgio_write_str(kos_get_banner());
     }
+
+    // sum_test();
+    printf("PRINTF TEST\n");
 
     timer_init();           /* Timers */
     hardware_sys_init();        /* DC low-level hardware init */

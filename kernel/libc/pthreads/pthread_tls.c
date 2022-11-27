@@ -5,6 +5,7 @@
 */
 
 #include <pthread.h>
+#include <sys/sched.h>
 
 /* Dynamic Package Initialization */
 int pthread_once(pthread_once_t *once_control, void (*init_routine)(void)) {

@@ -10,7 +10,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <stdio.h>
-#include <reent.h>
+// #include <reent.h>
 #include <errno.h>
 #include <kos/thread.h>
 #include <kos/dbgio.h>
@@ -18,6 +18,7 @@
 #include <kos/rwsem.h>
 #include <kos/cond.h>
 #include <kos/genwait.h>
+#include <kos/dbglog.h>
 #include <arch/irq.h>
 #include <arch/timer.h>
 #include <arch/arch.h>
@@ -245,7 +246,7 @@ void thd_exit(void *rv) {
     thd_current->rv = rv;
 
     /* Call newlib's thread cleanup function */
-    _reclaim_reent(&thd_current->thd_reent);
+    // _reclaim_reent(&thd_current->thd_reent);
 
     if(thd_current->flags & THD_DETACHED) {
         /* Call Dr. Kevorkian; after this executes we could be killed
@@ -408,7 +409,7 @@ kthread_t *thd_create_ex(kthread_attr_t *attr, void * (*routine)(void *param),
             else
                 strcpy(nt->pwd, "/");
 
-            _REENT_INIT_PTR((&(nt->thd_reent)));
+            // _REENT_INIT_PTR((&(nt->thd_reent)));
 
             /* Should we detach the thread? */
             if(real_attr.create_detached)
@@ -574,7 +575,7 @@ void thd_schedule(int front_of_line, uint64 now) {
     thd_remove_from_runnable(thd);
 
     thd_current = thd;
-    _impure_ptr = &thd->thd_reent;
+    // _impure_ptr = &thd->thd_reent;
     thd->state = STATE_RUNNING;
 
     /* Make sure the thread hasn't underrun its stack */
@@ -613,7 +614,7 @@ void thd_schedule_next(kthread_t *thd) {
 
     thd_remove_from_runnable(thd);
     thd_current = thd;
-    _impure_ptr = &thd->thd_reent;
+    // _impure_ptr = &thd->thd_reent;
     thd_current->state = STATE_RUNNING;
     irq_set_context(&thd_current->context);
 }
@@ -804,9 +805,9 @@ int * thd_get_errno(kthread_t * thd) {
     return &thd->thd_errno;
 }
 
-struct _reent * thd_get_reent(kthread_t *thd) {
-    return &thd->thd_reent;
-}
+// struct _reent * thd_get_reent(kthread_t *thd) {
+//     return &thd->thd_reent;
+// }
 
 /*****************************************************************************/
 

@@ -10,6 +10,7 @@
 #include <malloc.h>
 #include <time.h>
 #include <kos/mutex.h>
+#include <kos/dbglog.h>
 #include <dc/vmufs.h>
 #include <dc/maple.h>
 #include <dc/maple/vmu.h>

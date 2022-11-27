@@ -6,6 +6,7 @@
    Parts (c)2000-2001 Dan Potter
  */
 
+#include <kos/dbglog.h>
 #include <dc/video.h>
 #include <dc/sq.h>
 #include <string.h>

@@ -17,7 +17,7 @@ __BEGIN_DECLS
 #include <arch/irq.h>
 #include <arch/arch.h>
 #include <sys/queue.h>
-#include <sys/reent.h>
+// #include <sys/reent.h>
 
 /** \file   kos/thread.h
     \brief  Threading support.
@@ -155,7 +155,7 @@ typedef struct kthread {
     int thd_errno;
 
     /** \brief  Our reent struct for newlib. */
-    struct _reent thd_reent;
+    // struct _reent thd_reent;
 
     /** \brief  Thread-local storage.
         \see    kos/tls.h   */

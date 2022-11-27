@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <kos/net.h>
 #include <kos/thread.h>
+#include <kos/dbglog.h>
 #include <arch/timer.h>
 
 #include "net_ipv4.h"

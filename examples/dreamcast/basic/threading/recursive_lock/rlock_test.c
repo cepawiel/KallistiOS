@@ -93,7 +93,7 @@ void *thd2(void *param UNUSED) {
     return NULL;
 }
 
-KOS_INIT_FLAGS(INIT_DEFAULT);
+KOS_INIT_FLAGS(INIT_DEFAULT | INIT_NO_DCLOAD);
 
 int main(int argc, char *argv[]) {
     kthread_t *t0, *t1, *t2;

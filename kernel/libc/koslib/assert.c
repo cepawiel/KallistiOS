@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <kos/dbglog.h>
 
 #ifdef FRAME_POINTERS
 #include <arch/stack.h>

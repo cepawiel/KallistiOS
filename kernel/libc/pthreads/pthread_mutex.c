@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/sched.h>
 
 // XXX Recursive mutexes are not supported ... this could cause deadlocks
 // in code expecting it. Where do you set that!?

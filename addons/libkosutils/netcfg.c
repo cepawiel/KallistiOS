@@ -12,6 +12,7 @@
 #include <kos/netcfg.h>
 #include <dc/flashrom.h>
 #include <dc/vmu_pkg.h>
+#include <kos/fs.h>
 
 #include "netcfg_icon.h"
 

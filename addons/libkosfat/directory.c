@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <time.h>
+#include <kos/dbglog.h>
 
 #include "fatfs.h"
 #include "ucs.h"

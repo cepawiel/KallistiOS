@@ -112,7 +112,7 @@ void do_frame() {
     vid_border_color(0, 255, 0);
 }
 
-time_t start;
+time_t start_time;
 void switch_tests(int ppf) {
     printf("Beginning new test: %d polys per frame (%d per second at 60fps)\n",
            ppf, ppf * 60);
@@ -125,8 +125,8 @@ void check_switch() {
 
     now = time(NULL);
 
-    if(now >= (start + 5)) {
-        start = time(NULL);
+    if(now >= (start_time + 5)) {
+        start_time = time(NULL);
         printf("  Average Frame Rate: ~%f fps (%d pps)\n", avgfps, (int)(polycnt * avgfps));
 
         switch(phase) {
@@ -172,9 +172,9 @@ void check_switch() {
 int main(int argc, char **argv) {
     setup();
 
-    /* Start off with something obscene */
+    /* start_time off with something obscene */
     switch_tests(2000000 / 60);
-    start = time(NULL);
+    start_time = time(NULL);
 
     for(;;) {
         if(check_start())

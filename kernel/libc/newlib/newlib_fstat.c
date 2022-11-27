@@ -13,11 +13,11 @@
 
 #include <kos/fs.h>
 
-int _fstat_r(struct _reent *reent, int fd, struct stat *pstat) {
+int fstat(int fd, struct stat *pstat) {
     int err = errno, rv;
     size_t sz;
 
-    (void)reent;
+    // (void)reent;
 
     /* Try to use the native stat function first... */
     if(!(rv = fs_fstat(fd, pstat)) || errno != ENOSYS)

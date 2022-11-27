@@ -14,6 +14,7 @@
 
 #include <sys/queue.h>
 #include <kos/fs.h>
+#include <kos/dbglog.h>
 #include <arch/irq.h>
 #include <dc/spu.h>
 #include <dc/sound/sound.h>

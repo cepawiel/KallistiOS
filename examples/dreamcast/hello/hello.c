@@ -21,7 +21,7 @@ extern uint8 romdisk[];
 
    You can OR any or all of those together. If you want to start out with
    the current KOS defaults, use INIT_DEFAULT (or leave it out entirely). */
-KOS_INIT_FLAGS(INIT_DEFAULT | INIT_MALLOCSTATS | INIT_NO_DCLOAD);
+KOS_INIT_FLAGS(INIT_DEFAULT | INIT_MALLOCSTATS | INIT_NO_DCLOAD );
 
 /* And specify a romdisk, if you want one (or leave it out) */
 KOS_INIT_ROMDISK(romdisk);
@@ -30,6 +30,7 @@ KOS_INIT_ROMDISK(romdisk);
 int main(int argc, char **argv) {
     /* The requisite line */
     printf("\nHello world!\n\n");
+    printf("%s\n", "STRING TEST");
 
     return 0;
 }
