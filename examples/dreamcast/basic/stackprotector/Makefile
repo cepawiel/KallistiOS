@@ -1,3 +1,11 @@
+GCC_MAJORMINOR = $(basename $(KOS_GCCVER))
+GCC_MAJOR = $(basename $(GCC_MAJORMINOR))
+ifeq ($(strip $(GCC_MAJOR)), 4)
+all dist:
+	$(warning GCC4 missing stackprotector patch, skipping example)
+
+else
+
 TARGET = stackprotector.elf
 OBJS = stackprotector.o
 KOS_CFLAGS += -fstack-protector-all
@@ -24,3 +32,5 @@ dist: $(TARGET)
 
 
 .PHONY: run dist clean rm-elf
+
+endif

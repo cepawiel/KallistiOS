@@ -1,0 +1,12 @@
+[
+    {
+        "name" : "Dreamcast",
+        "kos_subarch" : "pristine",
+        "build_examples" : true
+    },
+    {
+        "name" : "NAOMI",
+        "kos_subarch" : "naomi",
+        "build_examples" : false
+    }
+]

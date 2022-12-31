@@ -1,0 +1,12 @@
+[
+    {
+        "name" :"GCC4",
+        "config" : "config.mk.stable.sample",
+        "latest" : false
+    },
+    {
+        "name" :"GCC9",
+        "config" : "config.mk.testing.sample",
+        "latest" : true
+    }
+]

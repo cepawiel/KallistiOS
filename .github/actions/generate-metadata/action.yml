@@ -1,0 +1,49 @@
+name: 'Generate Metadata'
+description: 'Generate Container Metadata for KallistiOS Containers'
+inputs:
+  image_name_base:
+    description: 'Base Name of Output Image'
+    required: true
+  toolchain_name:
+    description: 'Toolchain Name'
+    required: true
+  toolchain_latest:
+    description: 'Is Toolchain Newest'
+    default: false
+outputs:
+  tags:
+    description: "Container Tags"
+    value: ${{ steps.meta.outputs.tags }}
+  labels:
+    description: "Container Labels"
+    value: ${{ steps.meta.outputs.labels }}
+runs:
+  using: "composite"
+  steps:
+    - name: Generate ${{ inputs.image_name_base }} Container Metadata
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: ghcr.io/cepawiel/${{ inputs.image_name_base }}
+        flavor: |
+          latest=false
+          suffix=-${{ inputs.toolchain_name }}
+        tags: |
+          # tag event
+          type=ref,event=tag
+          # short sha (sha-<short_sha>)
+          type=sha,prefix=sha-,format=short
+          # pull request event (pr-<pr_num>)
+          type=ref,prefix=pr-,event=pr
+          # branch event (br-<branch_name>)
+          type=ref,prefix=br-,event=branch
+          # latest tag with GCCX suffix (latest-GCCX)
+          type=raw,value=latest,enable=${{ (github.ref == format('refs/heads/{0}', 'master')) }}
+
+          # duplicates of above with -GCCX suffix removed
+          # for latest version only
+          type=ref,suffix=,event=tag,enable=${{ inputs.toolchain_latest }}
+          type=sha,prefix=sha-,suffix=,format=short,enable=${{ inputs.toolchain_latest }}
+          type=ref,prefix=pr-,suffix=,event=pr,enable=${{ inputs.toolchain_latest }}
+          type=ref,prefix=br-,suffix=,event=branch,enable=${{ inputs.toolchain_latest }}
+          type=raw,value=latest,suffix=,enable=${{ (github.ref == format('refs/heads/{0}', 'master')) && (inputs.toolchain_latest) }}

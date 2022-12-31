@@ -1,0 +1,259 @@
+name: Build KOS Containers
+run-name: Building Containers for ${{ github.repository }} 
+on: [push]
+jobs:
+  setup:
+    name: Setting Up Build
+    runs-on: ubuntu-latest
+    outputs:
+      github-token-exists: ${{ steps.check-gh-token.outputs.defined }}
+      toolchain_tag_base: kos-sh4-toolchain
+      kos_tag_base: kos
+      toolchains: ${{ steps.set-toolchains.outputs.toolchains }}
+      kos_targets: ${{ steps.set-targets.outputs.targets }}
+    steps:
+        - uses: actions/checkout@v3
+
+        - id: check-gh-token
+          env:
+            GH_TOK: ${{ secrets.GITHUB_TOKEN }}
+          if: "${{ env.GH_TOK != '' }}"
+          run: echo "defined=true" >> $GITHUB_OUTPUT
+
+        - id: set-toolchains
+          run: |
+            TOOLCHAINS=$(cat .github/workflows/toolchains.json | jq -c)
+            echo "toolchains=$TOOLCHAINS" >> $GITHUB_OUTPUT
+        - id: set-targets
+          run: |
+            TARGETS=$(cat .github/workflows/targets.json | jq -c)
+            echo "targets=$TARGETS" >> $GITHUB_OUTPUT
+          
+  # build toolchains first so the cache can be used between kos builds
+  build-kos-toolchain:
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: ${{ fromJson(needs.setup.outputs.toolchains) }}
+    name: Build ${{ matrix.toolchain.name }} Toolchain
+    runs-on: ubuntu-latest
+    needs: [setup]
+    env:
+      CACHE_FROM: type=gha,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+      CACHE_TO: type=gha,mode=max,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/setup-buildx-action@v2
+
+      - name: Build Toolchain
+        uses: docker/build-push-action@v3
+        with:
+          pull: true
+          context: .
+          file: utils/docker/Dockerfile
+          target: toolchain
+          build-args: |
+            CONFIG_FILE=${{ matrix.toolchain.config }}
+          push: false
+          cache-from: ${{ env.CACHE_FROM }}
+          cache-to: ${{ env.CACHE_TO }}
+
+  build-all-test:
+    needs: [setup, build-kos-toolchain]
+    strategy:
+      fail-fast: false
+      matrix:
+        kos_target: ${{ fromJson(needs.setup.outputs.kos_targets) }}
+        toolchain: ${{ fromJson(needs.setup.outputs.toolchains) }}
+    name: Build ${{ matrix.toolchain.name }} ${{ matrix.kos_target.name }} KOS
+    runs-on: ubuntu-latest
+    env:
+      CACHE_FROM: type=gha,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+      CACHE_TO: type=gha,mode=max,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+      CONTAINER_TAG: ${{ github.sha }}-${{ matrix.kos_target.kos_subarch }}-kos-ports
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/setup-buildx-action@v2
+
+      - name: Build Options
+        run: echo "${{ toJSON(matrix) }}"
+
+      - name: Build KOS with Ports
+        id: build-check
+        uses: docker/build-push-action@v3
+        with:
+          load: true
+          pull: true
+          context: .
+          file: utils/docker/Dockerfile
+          target: kos-ports
+          build-args: |
+            CONFIG_FILE=${{ matrix.toolchain.config }}
+            KOS_SUBARCH=${{ matrix.kos_target.kos_subarch }}
+          tags: ${{ env.CONTAINER_TAG }}
+          push: false
+          cache-from: ${{ env.CACHE_FROM }}
+          cache-to: ${{ env.CACHE_TO }}
+
+      - name: Build Examples
+        if: ${{ matrix.kos_target.build_examples }}
+        run: |
+          cd examples/dreamcast
+          docker run --rm \
+            -v $(pwd):$(pwd) \
+            --workdir $(pwd) \
+            ${{ env.CONTAINER_TAG }} \
+            "make"
+
+      - name: Gather ELFs
+        if: ${{ matrix.kos_target.build_examples }}
+        run: |
+          mkdir examples/artifacts
+          find examples/dreamcast -type f -name "*.elf" -exec cp {} examples/artifacts \;
+          ls -la examples/artifacts
+
+      - uses: actions/upload-artifact@v3
+        if: ${{ matrix.kos_target.build_examples }}
+        with:
+          name: ${{ matrix.toolchain.name }}-${{ matrix.kos_target.name }}-Examples
+          path: examples/artifacts
+
+  publish-toolchain-containers:
+    needs: [setup, build-all-test]
+    if: needs.setup.outputs.github-token-exists == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: ${{ fromJson(needs.setup.outputs.toolchains) }}
+    name: Publish ${{ matrix.toolchain.name }} Toolchain
+    runs-on: ubuntu-latest
+    env:
+      CACHE_FROM: type=gha,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+      CACHE_TO: type=gha,mode=max,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/setup-buildx-action@v2
+
+      - run: echo "${{ toJSON(matrix) }}"
+
+      - name: Generate Toolchain Metadata
+        id: toolchain-meta
+        uses: ./.github/actions/generate-metadata
+        with:
+          image_name_base: ${{ needs.setup.outputs.toolchain_tag_base }}
+          toolchain_name: ${{ matrix.toolchain.name }}
+          toolchain_latest: ${{ matrix.toolchain.latest }}
+
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Toolchain Container
+        uses: docker/build-push-action@v3
+        with:
+          pull: true
+          context: .
+          file: utils/docker/Dockerfile
+          target: toolchain
+          build-args: |
+            CONFIG_FILE=${{ matrix.toolchain.config }}
+          tags: ${{ steps.toolchain-meta.outputs.tags }}
+          labels: ${{ steps.toolchain-meta.outputs.labels }}
+          push: true
+          cache-from: ${{ env.CACHE_FROM }}
+          cache-to: ${{ env.CACHE_TO }}
+
+  publish-kos-containers:
+    needs: [setup, build-all-test]
+    if: needs.setup.outputs.github-token-exists == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        kos_target: ${{ fromJson(needs.setup.outputs.kos_targets) }}
+        toolchain: ${{ fromJson(needs.setup.outputs.toolchains) }}
+    name: Publish ${{ matrix.toolchain.name }} ${{ matrix.kos_target.name }} KOS
+    runs-on: ubuntu-latest
+    env:
+      CACHE_FROM: type=gha,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+      CACHE_TO: type=gha,mode=max,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/setup-buildx-action@v2
+
+      - run: echo "${{ toJSON(matrix) }}"
+
+      - name: Generate KOS Metadata
+        id: kos-meta
+        uses: ./.github/actions/generate-metadata
+        with:
+          image_name_base: ${{ matrix.kos_target.name }}-${{ needs.setup.outputs.kos_tag_base }}
+          toolchain_name: ${{ matrix.toolchain.name }}
+          toolchain_latest: ${{ matrix.toolchain.latest }}
+
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish KOS Container
+        uses: docker/build-push-action@v3
+        with:
+          pull: true
+          context: .
+          file: utils/docker/Dockerfile
+          target: kos
+          build-args: |
+            CONFIG_FILE=${{ matrix.toolchain.config }}
+            KOS_SUBARCH=${{ matrix.kos_target.kos_subarch }}
+          tags: ${{ steps.kos-meta.outputs.tags }}
+          labels: ${{ steps.kos-meta.outputs.labels }}
+          push: true
+          cache-from: ${{ env.CACHE_FROM }}
+          cache-to: ${{ env.CACHE_TO }}
+
+  # build-kos-ports-containers:
+  #   needs: [setup, build-kos-containers]
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       kos_target: ${{ fromJson(needs.setup.outputs.kos_targets) }}
+  #       toolchain: ${{ fromJson(needs.setup.outputs.toolchains) }}
+  #   name: ${{ matrix.toolchain.name }} ${{ matrix.kos_target.name }} KOS Ports
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     CACHE_FROM: type=gha,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+  #     CACHE_TO: type=gha,mode=max,scope=${{ github.ref }}-${{ matrix.toolchain.name }}
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: docker/setup-buildx-action@v2
+
+  #     - name: Generate Metadata for KOS-Ports ${{ matrix.toolchain.name }}
+  #       id: kos-ports-meta
+  #       uses: ./.github/actions/generate-metadata
+  #       with:
+  #         image_name_base: ${{ matrix.kos_target.name }}-${{ needs.setup.outputs.kos_tag_base }}-ports
+  #         toolchain_name: ${{ matrix.toolchain.name }}
+  #         toolchain_latest: ${{ matrix.toolchain.latest }}
+
+  #     - name: Build KOS
+  #       uses: docker/build-push-action@v3
+  #       with:
+  #         pull: true
+  #         context: .
+  #         file: utils/docker/Dockerfile
+  #         target: kos-ports
+  #         build-args: |
+  #           CONFIG_FILE=${{ matrix.toolchain.config }}
+  #           KOS_SUBARCH=${{ matrix.kos_target.kos_subarch }}
+  #         tags: ${{ steps.kos-ports-meta.outputs.tags }}
+  #         labels: ${{ steps.kos-ports-meta.outputs.labels }}
+  #         push: false
+  #         cache-from: ${{ env.CACHE_FROM }}
+  #         cache-to: ${{ env.CACHE_TO }}
+
+
