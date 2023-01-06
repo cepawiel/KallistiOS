@@ -16,10 +16,24 @@ Built toolchains are:
 These images may be used to compile [KallistiOS](https://en.wikipedia.org/wiki/KallistiOS),
 the open source **Sega Dreamcast** development library.
 
-In clear, this `Dockerfile` doesn't build KallistiOS itself, only the required
-toolchains. KallistiOS is not part of the toolchains. Plus, KallistiOS may be
-updated often so it's better to have a separate image with the toolchains as
-building them can take hours and don't change often.
+The container can be built with the following command:
+```
+cd <root_kos_repo_path>
+docker build \
+  -f utils/docker/Dockerfile \
+  --build-arg CONFIG_FILE="config.mk.testing.sample" \
+  -t example-local-kos-image \
+  --target kos-ports \
+  .
+```
+The target parameter supports [toolchain, kos, kos-ports] stages. Additionally 
+KOS and Ports can be built with NAOMI support by setting the KOS_SUBARCH build-arg 
+to "naomi".
+
+The container can then be run:
+```
+docker run --rm -it example-local-kos-image "kos-cc --version"
+```
 
 Of course, the Docker image produced here can be used for CI/CD pipelines!
 
