@@ -76,8 +76,8 @@ export KOS_AFLAGS=""
 # pointers. It won't hurt to have it in there either way.
 # Link-time optimizations can be enabled by adding -flto. It however requires a
 # recent toolchain (GCC 10+), and has not been thoroughly tested.
-export KOS_CFLAGS="-O2 -fomit-frame-pointer"
-# export KOS_CFLAGS="-O2 -DFRAME_POINTERS -fno-omit-frame-pointer"
+export KOS_CFLAGS="-O2 -ftls-model=local-exec -fomit-frame-pointer"
+# export KOS_CFLAGS="-O2 -ftls-model=local-exec -DFRAME_POINTERS -fno-omit-frame-pointer"
 
 # Everything else is pretty much shared. If you want to configure compiler
 # options or other such things, look at this file.
