@@ -106,11 +106,12 @@ verbose=1
 # detected on some OS.
 makejobs=-j2
 
-# Languages (c|c++|objc|obj-c++)
+# Languages (c|c++|objc|obj-c++|rust)
 # Set the languages to build for pass 2 of building gcc for sh-elf. The default
-# here is to build C, C++, Objective C, and Objective C++. You may want to take
-# out the latter two if you're not worried about them and/or you're short on
-# hard drive space.
+# here is to build C, C++, Objective-C, Objective-C++, and Rust. You may want
+# to take out some languages if you're not worried about them and/or you're
+# short on hard drive space. Only C is required to build KallistiOS, but some
+# included examples use other languages. 
 pass2_languages=c,c++,objc,obj-c++,rust
 
 # Download protocol (http|https|ftp)
