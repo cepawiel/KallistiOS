@@ -1,6 +1,6 @@
 diff --color -ruN gcc-13/gcc/config/sh/sh-c.cc gcc-13-kos/gcc/config/sh/sh-c.cc
---- gcc-13/gcc/config/sh/sh-c.cc	2023-02-28 00:32:08.282187449 -0600
-+++ gcc-13-kos/gcc/config/sh/sh-c.cc	2023-02-28 00:35:30.017722104 -0600
+--- gcc-13/gcc/config/sh/sh-c.cc	2023-04-02 13:27:30.613222135 -0500
++++ gcc-13-kos/gcc/config/sh/sh-c.cc	2023-04-02 13:28:04.175299181 -0500
 @@ -141,4 +141,11 @@
  
    cpp_define_formatted (pfile, "__SH_ATOMIC_MODEL_%s__",
@@ -14,9 +14,9 @@ diff --color -ruN gcc-13/gcc/config/sh/sh-c.cc gcc-13-kos/gcc/config/sh/sh-c.cc
 +  builtin_define ("__KOS_GCC_32MB__");
  }
 diff --color -ruN gcc-13/gcc/configure gcc-13-kos/gcc/configure
---- gcc-13/gcc/configure	2023-02-28 00:32:08.288187465 -0600
-+++ gcc-13-kos/gcc/configure	2023-02-28 00:35:30.020722112 -0600
-@@ -12979,7 +12979,7 @@
+--- gcc-13/gcc/configure	2023-04-02 13:27:30.623222158 -0500
++++ gcc-13-kos/gcc/configure	2023-04-02 13:28:04.177299185 -0500
+@@ -13010,7 +13010,7 @@
      target_thread_file='single'
      ;;
    aix | dce | lynx | mipssde | posix | rtems | \
@@ -26,8 +26,8 @@ diff --color -ruN gcc-13/gcc/configure gcc-13-kos/gcc/configure
      ;;
    *)
 diff --color -ruN gcc-13/libgcc/config/sh/crt1.S gcc-13-kos/libgcc/config/sh/crt1.S
---- gcc-13/libgcc/config/sh/crt1.S	2023-02-28 00:32:10.987194618 -0600
-+++ gcc-13-kos/libgcc/config/sh/crt1.S	2023-02-28 00:35:56.538792392 -0600
+--- gcc-13/libgcc/config/sh/crt1.S	2023-04-02 13:27:24.494208088 -0500
++++ gcc-13-kos/libgcc/config/sh/crt1.S	2023-04-02 13:28:04.178299188 -0500
 @@ -1,724 +1,225 @@
 -/* Copyright (C) 2000-2023 Free Software Foundation, Inc.
 -   This file was pretty much copied from newlib.
@@ -963,7 +963,7 @@ diff --color -ruN gcc-13/libgcc/config/sh/crt1.S gcc-13-kos/libgcc/config/sh/crt
 +	.word	0x092d
 diff --color -ruN gcc-13/libgcc/config/sh/fake-kos.S gcc-13-kos/libgcc/config/sh/fake-kos.S
 --- gcc-13/libgcc/config/sh/fake-kos.S	1969-12-31 18:00:00.000000000 -0600
-+++ gcc-13-kos/libgcc/config/sh/fake-kos.S	2023-02-28 00:35:30.021722114 -0600
++++ gcc-13-kos/libgcc/config/sh/fake-kos.S	2023-04-02 13:28:04.178299188 -0500
 @@ -0,0 +1,78 @@
 +! Weakly linked symbols used to get GCC to hopefully compile itself properly.
 +! These will be replaced by the real symbols in actual compiled programs.
@@ -1045,7 +1045,7 @@ diff --color -ruN gcc-13/libgcc/config/sh/fake-kos.S gcc-13-kos/libgcc/config/sh
 +    mov     #-1, r0
 diff --color -ruN gcc-13/libgcc/config/sh/gthr-kos.h gcc-13-kos/libgcc/config/sh/gthr-kos.h
 --- gcc-13/libgcc/config/sh/gthr-kos.h	1969-12-31 18:00:00.000000000 -0600
-+++ gcc-13-kos/libgcc/config/sh/gthr-kos.h	2023-02-28 00:35:30.021722114 -0600
++++ gcc-13-kos/libgcc/config/sh/gthr-kos.h	2023-04-02 13:28:04.178299188 -0500
 @@ -0,0 +1,401 @@
 +/* Copyright (C) 2009, 2010, 2011, 2012, 2020 Lawrence Sebald */
 +
@@ -1449,8 +1449,8 @@ diff --color -ruN gcc-13/libgcc/config/sh/gthr-kos.h gcc-13-kos/libgcc/config/sh
 +
 +#endif /* ! GCC_GTHR_KOS_H */
 diff --color -ruN gcc-13/libgcc/config/sh/t-sh gcc-13-kos/libgcc/config/sh/t-sh
---- gcc-13/libgcc/config/sh/t-sh	2023-02-28 00:32:10.988194621 -0600
-+++ gcc-13-kos/libgcc/config/sh/t-sh	2023-02-28 00:35:30.021722114 -0600
+--- gcc-13/libgcc/config/sh/t-sh	2023-04-02 13:27:24.495208091 -0500
++++ gcc-13-kos/libgcc/config/sh/t-sh	2023-04-02 13:28:04.178299188 -0500
 @@ -23,6 +23,8 @@
    $(LIB1ASMFUNCS_CACHE)
  LIB1ASMFUNCS_CACHE = _ic_invalidate _ic_invalidate_array
@@ -1461,8 +1461,8 @@ diff --color -ruN gcc-13/libgcc/config/sh/t-sh gcc-13-kos/libgcc/config/sh/t-sh
  	$(gcc_compile) -c $<
  
 diff --color -ruN gcc-13/libgcc/configure gcc-13-kos/libgcc/configure
---- gcc-13/libgcc/configure	2023-02-28 00:32:10.995194639 -0600
-+++ gcc-13-kos/libgcc/configure	2023-02-28 00:35:30.022722117 -0600
+--- gcc-13/libgcc/configure	2023-04-02 13:27:24.498208098 -0500
++++ gcc-13-kos/libgcc/configure	2023-04-02 13:28:04.179299190 -0500
 @@ -5699,6 +5699,7 @@
      tpf)	thread_header=config/s390/gthr-tpf.h ;;
      vxworks)	thread_header=config/gthr-vxworks.h ;;
@@ -1472,8 +1472,8 @@ diff --color -ruN gcc-13/libgcc/configure gcc-13-kos/libgcc/configure
  esac
  
 diff --color -ruN gcc-13/libobjc/configure gcc-13-kos/libobjc/configure
---- gcc-13/libobjc/configure	2023-02-28 00:32:11.413195747 -0600
-+++ gcc-13-kos/libobjc/configure	2023-02-28 00:35:30.023722120 -0600
+--- gcc-13/libobjc/configure	2023-04-02 13:27:24.788208763 -0500
++++ gcc-13-kos/libobjc/configure	2023-04-02 13:28:04.180299192 -0500
 @@ -2918,11 +2918,9 @@
  
  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -1487,8 +1487,8 @@ diff --color -ruN gcc-13/libobjc/configure gcc-13-kos/libobjc/configure
    return 0;
  }
 diff --color -ruN gcc-13/libstdc++-v3/config/cpu/sh/atomicity.h gcc-13-kos/libstdc++-v3/config/cpu/sh/atomicity.h
---- gcc-13/libstdc++-v3/config/cpu/sh/atomicity.h	2023-02-28 00:32:11.468195893 -0600
-+++ gcc-13-kos/libstdc++-v3/config/cpu/sh/atomicity.h	2023-02-28 00:35:30.023722120 -0600
+--- gcc-13/libstdc++-v3/config/cpu/sh/atomicity.h	2023-04-02 13:27:24.854208915 -0500
++++ gcc-13-kos/libstdc++-v3/config/cpu/sh/atomicity.h	2023-04-02 13:28:04.180299192 -0500
 @@ -22,14 +22,40 @@
  // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
  // <http://www.gnu.org/licenses/>.
@@ -1540,8 +1540,8 @@ diff --color -ruN gcc-13/libstdc++-v3/config/cpu/sh/atomicity.h gcc-13-kos/libst
 +_GLIBCXX_END_NAMESPACE_VERSION
 +} // namespace
 diff --color -ruN gcc-13/libstdc++-v3/configure gcc-13-kos/libstdc++-v3/configure
---- gcc-13/libstdc++-v3/configure	2023-02-28 00:32:11.473195906 -0600
-+++ gcc-13-kos/libstdc++-v3/configure	2023-02-28 00:35:30.027722130 -0600
+--- gcc-13/libstdc++-v3/configure	2023-04-02 13:27:24.858208924 -0500
++++ gcc-13-kos/libstdc++-v3/configure	2023-04-02 13:28:04.185299204 -0500
 @@ -15809,6 +15809,7 @@
      tpf)	thread_header=config/s390/gthr-tpf.h ;;
      vxworks)	thread_header=config/gthr-vxworks.h ;;
