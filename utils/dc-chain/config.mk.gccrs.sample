@@ -21,7 +21,6 @@
 ###############################################################################
 ### THIS CONFIG IS FOR AN EXPERIMENTAL VERSION OF GCC!
 ## THERE ARE KNOWN ISSUES BUILDING THIS VERSION as of 2023-04-02.
-## Issue #1 -- See line 30.
 ## Issue #2 -- See line 123.
 ## Issue #3 -- Newlib errors occur when attempting to build raw toolchain
 ##             without KOS patches. No known workaround at this time.
@@ -30,21 +29,16 @@
 
 # Toolchain versions for SH
 sh_binutils_ver=2.40
-###############################################################################
-### Build script cannot pull from git, so workaround:
-# Leave the following line as 12.2.0, perform ./download.sh and ./unpack.sh,
-# then run: git clone https://github.com/Rust-GCC/gccrs gcc-rs
-# then re-open this file and swap the following line to rs before building.
-###############################################################################
-sh_gcc_ver=12.2.0
-#sh_gcc_ver=rs
+sh_gcc_ver=rs
 newlib_ver=4.3.0.20230120
 gdb_ver=13.1
 insight_ver=6.8-1
 
-# Tarball extensions to download for SH
+# Download type for SH sources
 sh_binutils_tarball_type=xz
-sh_gcc_tarball_type=xz
+sh_gcc_download_type=git
+sh_gcc_git_repo=https://github.com/Rust-GCC/gccrs.git
+sh_gcc_git_branch=master
 newlib_tarball_type=gz
 gdb_tarball_type=xz
 insight_tarball_type=bz2
@@ -55,7 +49,7 @@ insight_tarball_type=bz2
 arm_binutils_ver=2.40
 arm_gcc_ver=8.4.0
 
-# Tarball extensions to download for ARM
+# Download type for ARM sources
 arm_binutils_tarball_type=xz
 arm_gcc_tarball_type=xz
 
@@ -133,7 +127,7 @@ makejobs=-j2
 # ln -s /opt/toolchains/dc/sh-elf/bin/sh-elf-c++ \
 #        <toolchains_base>/sh-elf/bin/sh-elf-c++
 ###############################################################################
-pass2_languages=c,objc,rust
+pass2_languages=c,c++,rust
 
 # Download protocol (http|https|ftp)
 # Specify here the protocol you want to use for downloading the packages.
