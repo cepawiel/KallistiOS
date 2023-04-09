@@ -17,16 +17,6 @@
 # gdb
 # insight
 
-###############################################################################
-###############################################################################
-### THIS CONFIG IS FOR AN EXPERIMENTAL VERSION OF GCC!
-## THERE ARE KNOWN ISSUES BUILDING THIS VERSION as of 2023-04-02.
-## Issue #2 -- See line 123.
-## Issue #3 -- Newlib errors occur when attempting to build raw toolchain
-##             without KOS patches. No known workaround at this time.
-###############################################################################
-###############################################################################
-
 # Toolchain versions for SH
 sh_binutils_ver=2.40
 sh_gcc_ver=rs
@@ -37,8 +27,8 @@ insight_ver=6.8-1
 # Download type for SH sources
 sh_binutils_tarball_type=xz
 sh_gcc_download_type=git
-sh_gcc_git_repo=https://github.com/Rust-GCC/gccrs.git
-sh_gcc_git_branch=master
+sh_gcc_git_repo=https://github.com/cepawiel/gccrs-dreamcast.git
+sh_gcc_git_branch=cross-compile-libgrust
 newlib_tarball_type=gz
 gdb_tarball_type=xz
 insight_tarball_type=bz2
@@ -119,14 +109,6 @@ makejobs=-j2
 # to take out some languages if you're not worried about them and/or you're
 # short on hard drive space. Only C is required to build KallistiOS, but some
 # included examples use other languages. 
-###############################################################################
-### C++ and Obj-C++ do not build with gcc-rs. They have been disabled. However,
-# C++ is required to build Rust. You must symlink an existing sh-elf-c++ binary
-# from another stable toolchain to workaround this, like so:
-# mkdir -p <toolchains_base>/sh-elf/bin
-# ln -s /opt/toolchains/dc/sh-elf/bin/sh-elf-c++ \
-#        <toolchains_base>/sh-elf/bin/sh-elf-c++
-###############################################################################
 pass2_languages=c,c++,rust
 
 # Download protocol (http|https|ftp)
