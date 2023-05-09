@@ -924,6 +924,9 @@ int thd_init(void) {
     strcpy(kern->label, "[kernel]");
     kern->state = STATE_RUNNING;
 
+    /* Initialize GBR register for Main Thread */
+    __builtin_set_thread_pointer(kern->context.gbr);
+
     /* De-scehdule the thread (it's STATE_RUNNING) */
     thd_remove_from_runnable(kern);
 

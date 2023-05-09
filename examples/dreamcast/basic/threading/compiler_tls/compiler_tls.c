@@ -26,7 +26,7 @@
 #endif
 
 extern thread_local uint32_t tbss_test = 0;
-extern thread_local uint32_t tdata_test = 5;
+extern thread_local uint32_t tdata_test = 0x5A;
 
 
 /* Thread Function */
@@ -64,6 +64,18 @@ int main(int argc, char **argv) {
     for(i = 0; i < thread_count; i++) {
         threads[i] = thd_create(0, thd, (void *) i);
     };
+
+        for (i = 0; i < 5; i++){        
+        printf("Main Thread\tbss_test = 0x%lX\n", tbss_test);
+        tbss_test++;
+        thd_sleep(25);
+    }
+
+    for (i = 0; i < 5; i++){
+        printf("Main Thread\ttdata_test = 0x%lX\n", tdata_test);
+        tdata_test++;
+        thd_sleep(25);
+    }
 
     for(i = 0; i < thread_count; i++) {
         int ret = (int) thd_join(threads[i], NULL);
