@@ -26,7 +26,7 @@ gdb_ver=13.1
 sh_binutils_download_type=xz
 sh_gcc_download_type=xz
 newlib_download_type=gz
-gdb_tarball_type=xz
+gdb_download_type=xz
 
 # Toolchain for ARM
 # The ARM version of binutils/gcc is separated out as the particular CPU
