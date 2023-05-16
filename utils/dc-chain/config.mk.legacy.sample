@@ -28,7 +28,6 @@ sh_gcc_download_type=bz2
 newlib_download_type=gz
 gdb_download_type=xz
 
-
 # Toolchain for ARM
 # The ARM version of binutils/gcc is separated out as the particular CPU
 # versions we need may not be available in newer versions of GCC.
