@@ -24,6 +24,7 @@
 
 extern int _tdata_start, _tdata_size;
 extern int _tbss_size;
+extern long _tdata_align, _tbss_align;
 
 /*
 
@@ -328,6 +329,10 @@ int thd_remove_from_runnable(kthread_t *thd) {
     return 0;
 }
 
+static inline size_t align_to(const size_t base, const size_t align) {
+    return (base + (align - 1)) & ~(align - 1);
+}
+
 /* New thread function; given a routine address, it will create a
    new kernel thread with the given attributes. When the routine
    returns, the thread will exit. Returns the new thread struct. */
@@ -365,19 +370,36 @@ kthread_t *thd_create_ex(kthread_attr_t *attr, void * (*routine)(void *param),
         size_t tdata_size   = (size_t)(&_tdata_size);
         size_t tbss_size    = (size_t)(&_tbss_size);
 
+        size_t tdata_align  = (size_t)_tdata_align;
+        size_t tbss_align   = (size_t)_tbss_align;
+
+        size_t tdata_aligned_size = align_to(tdata_size, tdata_align);
+        size_t tbss_aligned_size  = align_to(tbss_size, tbss_align);
+
+        size_t tdata_alignment_offset = tdata_aligned_size - tdata_size;
+        size_t tbss_aligned_offset = tbss_aligned_size - tbss_size;
+
+        void* tdata = ((uint8_t*)&nt->static_tls_data) + tdata_alignment_offset;
+        void* tbss = (uint8_t*)tdata + tdata_size + tbss_aligned_offset;
+        void* tcbhead = (uint8_t*)tdata - tdata_alignment_offset - 8;
+
+        printf("tdata [size: %zu, align: %zu, aligned_size: %zu]\n", tdata_size, tdata_align, tdata_aligned_size);
+        printf("tbss [size: %zu, align: %zu, aligned_size: %zu]\n", tbss_size, tbss_align, tbss_aligned_size);
+        fflush(stdout);
+
         /* Create a new thread structure 
            with space for TLS BSS and Data Secions */
-        nt = malloc(sizeof(kthread_t) + tdata_size + tbss_size);
+        nt = malloc(sizeof(kthread_t) + tdata_aligned_size + tbss_aligned_size + 8);
 
         if(nt != NULL) {
             /* Clear out potentially unused stuff */
             memset(nt, 0, sizeof(kthread_t));
 
             /* Init TLS Data Section */
-            memcpy(&nt->static_tls_data, tdata_start, tdata_size);
+            memcpy(tdata, tdata_start, tdata_size);
                         
             /* Clear TLS BSS Section */
-            memset(nt->static_tls_data + tdata_size, 0, tbss_size);
+            memset(tbss, 0, tbss_size);
 
             /* Initialize Thread Control Block Header */
             nt->tcbhead.dtv = NULL;
@@ -410,6 +432,7 @@ kthread_t *thd_create_ex(kthread_attr_t *attr, void * (*routine)(void *param),
 
             /* Set Thread Pointer */
             nt->context.gbr = (uint32) &nt->tcbhead;
+            //nt->context.gbr = (uint32_t)tcbhead;
             nt->tid = tid;
             nt->prio = real_attr.prio;
             nt->flags = THD_DEFAULTS;
@@ -931,7 +954,7 @@ int thd_init(void) {
     kern->state = STATE_RUNNING;
 
     /* Initialize GBR register for Main Thread */
-    __builtin_set_thread_pointer(kern->context.gbr);
+    __builtin_set_thread_pointer((void*)kern->context.gbr);
 
     /* De-scehdule the thread (it's STATE_RUNNING) */
     thd_remove_from_runnable(kern);

@@ -15,6 +15,7 @@
  */
 
 #include <kos.h>
+#include <stdbool.h>
 
 #if (__GNUC__ <= 4)
 /* GCC4 only supports using TLS with the __thread identifier,
@@ -25,9 +26,20 @@
 #define thread_local _Thread_local
 #endif
 
-extern thread_local uint32_t tbss_test = 0;
-extern thread_local uint32_t tdata_test = 0x5A;
+typedef struct {
+    uint8_t inner[3];
+} Align4;
 
+typedef struct {
+    uint8_t inner[3];
+} Align16;
+
+static thread_local volatile _Alignas(4)  Align4   BUF_4           = {.inner = {2, 2, 2}};
+static thread_local volatile _Alignas(16) Align16  BUF_16          = {.inner = {1, 1, 1}};
+static thread_local volatile              uint16_t tlsUint16[256]  = { 0 };
+static thread_local volatile _Alignas(32) uint32_t tbss_test       = 0;
+static thread_local volatile _Alignas(32) char     tlsCharArray_[] = { "abcdefghijklmnopqrstuvwxyz012345" };
+static thread_local volatile              uint32_t tdata_test      = 0x5A;
 
 /* Thread Function */
 void *thd(void *v) {
@@ -48,13 +60,50 @@ void *thd(void *v) {
         thd_sleep(50);
     }
 
+    if(tlsUint16[0] != 0)
+        printf("TLSUINT16 FAILED!\n");
+
+    if(strcmp(tlsCharArray_, "abcdefghijklmnopqrstuvwxyz012345")) {
+        printf("ALPHABET FAILED: %s\n", tlsCharArray_);
+    }
+
+
+    bool reproduced = false;
+
+    // Check if at least one byte has been offset improperly
+    printf("[");
+    for (int i = 0; i < 3; i++) {
+        if (BUF_4.inner[i] != 2) {
+            reproduced = true;
+        }
+        printf("%d, ", BUF_4.inner[i]);
+    }
+    printf("]\n");
+
+    printf("[");
+    for (int i = 0; i < 3; i++) {
+        if (BUF_16.inner[i] != 1) {
+            reproduced = true;
+        }
+        printf("%d, ", BUF_16.inner[i]);
+    }
+    printf("]\n");
+
+
+    if (reproduced) {
+        printf("Bug has been reproduced!\n");
+    }
+    else {
+        printf("There has been no issue!\n");
+    }
+
     printf("Finished Thread %d\n", id);
     return NULL;
 }
 
 /* The main program */
 int main(int argc, char **argv) {
-    const int thread_count = 2;
+    const int thread_count = 5;
 
     int i;
     kthread_t * threads[thread_count];   
