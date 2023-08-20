@@ -106,6 +106,18 @@ TAILQ_HEAD(ktqueue, kthread);
 LIST_HEAD(ktlist, kthread);
 /* \endcond */
 
+/** \brief   Control Block Header
+    \ingroup threads
+
+    Header preceeding the static TLS data segments as defined by
+    the SH-ELF TLS ABI (version 1). This is what the thread pointer 
+    (GBR) points to for compiler access to thread-local data. 
+*/
+typedef struct tcbhead {
+    void *dtv;               /**< \brief Dynamic TLS vector (unused) */
+    uintptr_t pointer_guard; /**< \brief Pointer guard (unused) */
+} tcbhead_t;
+
 /** \brief   Structure describing one running thread.
     \ingroup threads
 
@@ -185,25 +197,16 @@ typedef struct kthread {
     /** \brief  Our reent struct for newlib. */
     struct _reent thd_reent;
 
-    /** \brief  Thread-local storage.
+    /** \brief  OS-level thread-local storage.
         \see    kos/tls.h   */
     struct kthread_tls_kv_list tls_list;
+
+    /** \brief Compiler-level thread-local storage. */
+    tcbhead_t* tcbhead;
 
     /** \brief  Return value of the thread function.
         This is only used in joinable threads.  */
     void *rv;
-
-    /** \brief  Control Block Header
-        This is where the GBR register points for TLS 
-        support at the compiler level */
-    struct tcbhead_t {
-        /* Since neither of these are supported at the moment
-           we just initialize them to NULL */
-        void *dtv; /* only for dynamic TLS */
-        uintptr_t pointer_guard;
-    } tcbhead;
-
-    uint8_t static_tls_data[]; /* FAM for all STATIC TLS data */
 } kthread_t;
 
 /** \defgroup thd_flags             Thread flag values
