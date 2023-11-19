@@ -2,6 +2,7 @@
 !
 !   arch/dreamcast/kernel/entry.s
 !   (c)2000-2001 Megan Potter
+!   Copyright (c)2023 Colton Pawielski
 !
 ! Assembler code for entry and exit to/from the kernel via exceptions
 !
@@ -70,39 +71,25 @@ _irq_save_regs:
     sts.l   fpscr,@-r0      ! save FPSCR 0xdc
     mov     #0,r2           ! Set known FP flags
     lds     r2,fpscr
-    fmov.s  fr15,@-r0       ! save FR15  0xd8
-    fmov.s  fr14,@-r0       ! save FR14
-    fmov.s  fr13,@-r0       ! save FR13
-    fmov.s  fr12,@-r0       ! save FR12
-    fmov.s  fr11,@-r0       ! save FR11
-    fmov.s  fr10,@-r0       ! save FR10
-    fmov.s  fr9,@-r0        ! save FR9
-    fmov.s  fr8,@-r0        ! save FR8
-    fmov.s  fr7,@-r0        ! save FR7
-    fmov.s  fr6,@-r0        ! save FR6
-    fmov.s  fr5,@-r0        ! save FR5
-    fmov.s  fr4,@-r0        ! save FR4
-    fmov.s  fr3,@-r0        ! save FR3
-    fmov.s  fr2,@-r0        ! save FR2
-    fmov.s  fr1,@-r0        ! save FR1
-    fmov.s  fr0,@-r0        ! save FR0   0x9c
+    fschg                   ! Switch to pair FP moves
+    fmov.d  dr14,@-r0       ! save FR15 & 14
+    fmov.d  dr12,@-r0       ! save FR13 & 12
+    fmov.d  dr10,@-r0       ! save FR11 & 10
+    fmov.d  dr8,@-r0        ! save FR9 & 8
+    fmov.d  dr6,@-r0        ! save FR7 & 6
+    fmov.d  dr4,@-r0        ! save FR5 & 4
+    fmov.d  dr2,@-r0        ! save FR3 & 2
+    fmov.d  dr0,@-r0        ! save FR1 & 0
     frchg                   ! Second FP bank
-    fmov.s  fr15,@-r0       ! save FR15  0x98
-    fmov.s  fr14,@-r0       ! save FR14
-    fmov.s  fr13,@-r0       ! save FR13
-    fmov.s  fr12,@-r0       ! save FR12
-    fmov.s  fr11,@-r0       ! save FR11
-    fmov.s  fr10,@-r0       ! save FR10
-    fmov.s  fr9,@-r0        ! save FR9
-    fmov.s  fr8,@-r0        ! save FR8
-    fmov.s  fr7,@-r0        ! save FR7
-    fmov.s  fr6,@-r0        ! save FR6
-    fmov.s  fr5,@-r0        ! save FR5
-    fmov.s  fr4,@-r0        ! save FR4
-    fmov.s  fr3,@-r0        ! save FR3
-    fmov.s  fr2,@-r0        ! save FR2
-    fmov.s  fr1,@-r0        ! save FR1
-    fmov.s  fr0,@-r0        ! save FR0   0x5c
+    fmov.d  dr14,@-r0       ! save FR15 & 14
+    fmov.d  dr12,@-r0       ! save FR13 & 12
+    fmov.d  dr10,@-r0       ! save FR11 & 10
+    fmov.d  dr8,@-r0        ! save FR9 & 8
+    fmov.d  dr6,@-r0        ! save FR7 & 6
+    fmov.d  dr4,@-r0        ! save FR5 & 4
+    fmov.d  dr2,@-r0        ! save FR3 & 2
+    fmov.d  dr0,@-r0        ! save FR1 & 0
+    fschg                   ! Switch to single FP moves
     frchg                   ! First FP bank again
 
     ! Setup our kernel-mode stack
@@ -171,23 +158,29 @@ _save_regs_finish:
     mov     #0,r2               ! Set known FP flags  (+0x5c)
     lds     r2,fpscr
     frchg                       ! Second FP bank
-    fmov.s  @r1+,fr0            ! restore FR0  0x5c
-    fmov.s  @r1+,fr1            ! restore FR1
-    fmov.s  @r1+,fr2            ! restore FR2
-    fmov.s  @r1+,fr3            ! restore FR3
-    fmov.s  @r1+,fr4            ! restore FR4
-    fmov.s  @r1+,fr5            ! restore FR5
-    fmov.s  @r1+,fr6            ! restore FR6
-    fmov.s  @r1+,fr7            ! restore FR7
-    fmov.s  @r1+,fr8            ! restore FR8
-    fmov.s  @r1+,fr9            ! restore FR9
-    fmov.s  @r1+,fr10           ! restore FR10
-    fmov.s  @r1+,fr11           ! restore FR11
-    fmov.s  @r1+,fr12           ! restore FR12
-    fmov.s  @r1+,fr13           ! restore FR13
-    fmov.s  @r1+,fr14           ! restore FR14
-    fmov.s  @r1+,fr15           ! restore FR15 0x98
+    fschg                       ! Switch to pair FP moves
+    fmov.d  @r1+,dr0            ! restore FR0 & 1
+    fmov.d  @r1+,dr2            ! restore FR2 & 3
+    fmov.d  @r1+,dr4            ! restore FR4 & 5
+    fmov.d  @r1+,dr6            ! restore FR6 & 7
+    fmov.d  @r1+,dr8            ! restore FR8 & 9
+    fmov.d  @r1+,dr10           ! restore FR10 & 11
+    fmov.d  @r1+,dr12           ! restore FR12 & 13
+    fmov.d  @r1+,dr14           ! restore FR14 & 15
     frchg                       ! First FP bank
+    fmov.d  @r1+,dr0            ! restore FR0 & 1
+    fmov.d  @r1+,dr2            ! restore FR2 & 3
+    fmov.d  @r1+,dr4            ! restore FR4 & 5
+    fmov.d  @r1+,dr6            ! restore FR6 & 7
+    fmov.d  @r1+,dr8            ! restore FR8 & 9
+    fmov.d  @r1+,dr10           ! restore FR10 & 11
+    fmov.d  @r1+,dr12           ! restore FR12 & 13
+    fmov.d  @r1+,dr14           ! restore FR14 & 15
+
+!   No need to switch back modes here as the FPSCR restore
+!   will do it for us (if neccessary).
+!    fschg                       ! Switch to single FP moves
+
     lds.l   @r1+,fpscr          ! restore FPSCR 0xdc
     lds.l   @r1+,fpul           ! restore FPUL  0xe0
 

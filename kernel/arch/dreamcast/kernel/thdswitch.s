@@ -2,6 +2,7 @@
 !
 !   arch/dreamcast/kernel/thdswitch.s
 !   Copyright (c)2003 Megan Potter
+!   Copyright (c)2023 Colton Pawielski
 !
 ! Assembler code for swapping out running threads
 !
@@ -69,39 +70,25 @@ _thd_block_now:
     sts.l   fpscr,@-r4      ! save FPSCR 0xdc
     mov     #0,r2           ! Set known FP flags
     lds     r2,fpscr
-    fmov.s  fr15,@-r4       ! save FR15  0xd8
-    fmov.s  fr14,@-r4       ! save FR14
-    fmov.s  fr13,@-r4       ! save FR13
-    fmov.s  fr12,@-r4       ! save FR12
-    fmov.s  fr11,@-r4       ! save FR11
-    fmov.s  fr10,@-r4       ! save FR10
-    fmov.s  fr9,@-r4        ! save FR9
-    fmov.s  fr8,@-r4        ! save FR8
-    fmov.s  fr7,@-r4        ! save FR7
-    fmov.s  fr6,@-r4        ! save FR6
-    fmov.s  fr5,@-r4        ! save FR5
-    fmov.s  fr4,@-r4        ! save FR4
-    fmov.s  fr3,@-r4        ! save FR3
-    fmov.s  fr2,@-r4        ! save FR2
-    fmov.s  fr1,@-r4        ! save FR1
-    fmov.s  fr0,@-r4        ! save FR0   0x9c
+    fschg                   ! Switch to pair FP moves
+    fmov.d  dr14,@-r4       ! save FR15 & 14
+    fmov.d  dr12,@-r4       ! save FR13 & 12
+    fmov.d  dr10,@-r4       ! save FR11 & 10
+    fmov.d  dr8,@-r4        ! save FR9 & 8
+    fmov.d  dr6,@-r4        ! save FR7 & 6
+    fmov.d  dr4,@-r4        ! save FR5 & 4
+    fmov.d  dr2,@-r4        ! save FR3 & 2
+    fmov.d  dr0,@-r4        ! save FR1 & 0
     frchg                   ! Second FP bank
-    fmov.s  fr15,@-r4       ! save FR15  0x98
-    fmov.s  fr14,@-r4       ! save FR14
-    fmov.s  fr13,@-r4       ! save FR13
-    fmov.s  fr12,@-r4       ! save FR12
-    fmov.s  fr11,@-r4       ! save FR11
-    fmov.s  fr10,@-r4       ! save FR10
-    fmov.s  fr9,@-r4        ! save FR9
-    fmov.s  fr8,@-r4        ! save FR8
-    fmov.s  fr7,@-r4        ! save FR7
-    fmov.s  fr6,@-r4        ! save FR6
-    fmov.s  fr5,@-r4        ! save FR5
-    fmov.s  fr4,@-r4        ! save FR4
-    fmov.s  fr3,@-r4        ! save FR3
-    fmov.s  fr2,@-r4        ! save FR2
-    fmov.s  fr1,@-r4        ! save FR1
-    fmov.s  fr0,@-r4        ! save FR0   0x5c
+    fmov.d  dr14,@-r4       ! save FR15 & 14
+    fmov.d  dr12,@-r4       ! save FR13 & 12
+    fmov.d  dr10,@-r4       ! save FR11 & 10
+    fmov.d  dr8,@-r4        ! save FR9 & 8
+    fmov.d  dr6,@-r4        ! save FR7 & 6
+    fmov.d  dr4,@-r4        ! save FR5 & 4
+    fmov.d  dr2,@-r4        ! save FR3 & 2
+    fmov.d  dr0,@-r4        ! save FR1 & 0
+    fschg                   ! Switch to single FP moves
     frchg                   ! First FP bank again
 
     ! Ok, everything is saved now. There's no need to switch stacks or
