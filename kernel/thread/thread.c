@@ -954,11 +954,11 @@ int kthread_key_delete(kthread_key_t key) {
     }
 
     /* Make sure we can actually use free below. */
-    if(!malloc_irq_safe()) {
-        irq_restore(old);
-        errno = EPERM;
-        return -1;
-    }
+    // if(!malloc_irq_safe()) {
+    //     irq_restore(old);
+    //     errno = EPERM;
+    //     return -1;
+    // }
 
     /* Go through each thread searching for (and removing) the data. */
     LIST_FOREACH(cur, &thd_list, t_list) {

@@ -5,7 +5,7 @@ diff --color -ruN newlib-4.3.0.20230120/newlib/configure.host newlib-4.3.0.20230
  	;;
    sh | sh64)
  	machine_dir=sh
-+	newlib_cflags="${newlib_cflags} -DREENTRANT_SYSCALLS_PROVIDED -DMALLOC_PROVIDED -DABORT_PROVIDED -DHAVE_FCNTL -ffunction-sections -fdata-sections"
++	newlib_cflags="${newlib_cflags} -DREENTRANT_SYSCALLS_PROVIDED -DABORT_PROVIDED -DHAVE_FCNTL -ffunction-sections -fdata-sections"
  	;;
    sparc*)
  	libm_machine_dir=sparc
