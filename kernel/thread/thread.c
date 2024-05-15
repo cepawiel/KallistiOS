@@ -3,6 +3,8 @@
    kernel/thread/thread.c
    Copyright (C) 2000, 2001, 2002, 2003 Megan Potter
    Copyright (C) 2010, 2016 Lawrence Sebald
+   Copyright (C) 2023 Colton Pawielski
+   Copyright (C) 2023, 2024 Falco Girgis
 */
 
 #include <stdlib.h>
@@ -11,6 +13,7 @@
 #include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <reent.h>
 #include <errno.h>
 #include <kos/thread.h>
@@ -22,7 +25,6 @@
 #include <arch/irq.h>
 #include <arch/timer.h>
 #include <arch/arch.h>
-#include <assert.h>
 
 /*
 
@@ -49,6 +51,9 @@ static inline size_t align_to(size_t address, size_t alignment) {
 
 /*****************************************************************************/
 /* Thread scheduler data */
+
+/* Scheduler timer interrupt frequency (Hertz) */
+static unsigned int thd_sched_ms = 1000 / HZ;
 
 /* Thread list. This includes all threads except dead ones. */
 static struct ktlist thd_list;
@@ -455,7 +460,7 @@ kthread_t *thd_create_ex(const kthread_attr_t *restrict attr,
 
     if(tid >= 0) {
         /* Create a new thread structure */
-        nt = malloc(sizeof(kthread_t));
+        nt = memalign(32, sizeof(kthread_t));
 
         if(nt != NULL) {
             /* Clear out potentially unused stuff */
@@ -708,6 +713,10 @@ void thd_schedule_next(kthread_t *thd) {
     if(!irq_inside_int())
         return;
 
+    /* We're already running now! */
+    if(thd == thd_current)
+        return;
+
     /* Can't boost a blocked thread */
     if(thd->state != STATE_READY)
         return;
@@ -744,7 +753,7 @@ irq_context_t *thd_choose_new(void) {
 /*****************************************************************************/
 
 /* Timer function. Check to see if we were woken because of a timeout event
-   or because of a pre-empt. For timeouts, just go take care of it and sleep
+   or because of a preempt. For timeouts, just go take care of it and sleep
    again until our next context switch (if any). For pre-empts, re-schedule
    threads, swap out contexts, and sleep. */
 static void thd_timer_hnd(irq_context_t *context) {
@@ -756,7 +765,7 @@ static void thd_timer_hnd(irq_context_t *context) {
     //printf("timer woke at %d\n", (uint32_t)now);
 
     thd_schedule(0, now);
-    timer_primary_wakeup(1000 / HZ);
+    timer_primary_wakeup(thd_sched_ms);
 }
 
 /*****************************************************************************/
@@ -780,7 +789,7 @@ void thd_sleep(int ms) {
         return;
     }
 
-    /* We can genwait on a non-existant object here with a timeout and
+    /* We can genwait on a non-existent object here with a timeout and
        have the exact same effect; as a nice bonus, this collapses both
        sleep cases into a single case, which is nice for scheduling
        purposes. 0xffffffff definitely doesn't exist as an object, so we'll
@@ -891,7 +900,7 @@ int thd_detach(kthread_t *thd) {
 
 
 /*****************************************************************************/
-/* Retrive / set thread label */
+/* Retrieve / set thread label */
 const char *thd_get_label(kthread_t *thd) {
     return thd->label;
 }
@@ -934,6 +943,19 @@ int thd_set_mode(int mode) {
 
 int thd_get_mode(void) {
     return thd_mode;
+}
+
+unsigned thd_get_hz(void) {
+    return 1000 / thd_sched_ms;
+}
+
+int thd_set_hz(unsigned int hertz) {
+    if(!hertz || hertz > 1000)
+        return -1;
+
+    thd_sched_ms = 1000 / hertz;
+
+    return 0;
 }
 
 /* Delete a TLS key. Note that currently this doesn't prevent you from reusing
@@ -1044,9 +1066,9 @@ int thd_init(void) {
     timer_primary_set_callback(thd_timer_hnd);
 
     /* Schedule our first wakeup */
-    timer_primary_wakeup(1000 / HZ);
+    timer_primary_wakeup(thd_sched_ms);
 
-    dbglog(DBG_INFO, "thd: pre-emption enabled, HZ=%d\n", HZ);
+    dbglog(DBG_INFO, "thd: pre-emption enabled, HZ=%u\n", thd_get_hz());
 
     return 0;
 }

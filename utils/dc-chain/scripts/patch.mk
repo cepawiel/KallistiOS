@@ -1,11 +1,7 @@
 # Sega Dreamcast Toolchains Maker (dc-chain)
 # This file is part of KallistiOS.
-#
-# Created by Jim Ursetto (2004)
-# Initially adapted from Stalin's build script version 0.3.
-#
 
-patch: patch-sh4 patch-arm patch-kos
+patch: patch-sh4
 patch-sh4: patch-sh4-binutils patch-sh4-gcc patch-sh4-newlib
 patch-arm: patch-arm-binutils patch-arm-gcc
 
@@ -30,7 +26,6 @@ $(patch_arm_targets): binutils_ver = $(arm_binutils_ver)
 patch_binutils      = patch-sh4-binutils patch-arm-binutils
 patch_gcc           = patch-sh4-gcc patch-arm-gcc
 patch_newlib        = patch-sh4-newlib
-patch_kos           = patch-kos
 
 # Patch
 # Apply sh4 newlib fixups (default is yes and this should be always the case!)
@@ -140,12 +135,3 @@ $(patch_newlib): diff_patches += $(wildcard $(patches)/$(host_triplet)/$(src_dir
 $(patch_newlib):
 	$(call patch_apply)
 	$(call update_config_guess_sub)
-
-# KallistiOS
-$(patch_kos): patch_target_name = KallistiOS
-$(patch_kos): src_dir = $(kos_root)
-$(patch_kos): stamp_radical_name = kos
-$(patch_kos): diff_patches := $(wildcard $(patches)/$(src_dir)*.diff)
-$(patch_kos): diff_patches += $(wildcard $(patches)/$(host_triplet)/$(src_dir)*.diff)
-$(patch_kos):
-	$(call patch_apply)
