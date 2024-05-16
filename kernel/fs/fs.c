@@ -35,6 +35,7 @@ something like this:
 #include <stdlib.h>
 #include <limits.h>
 #include <kos/fs.h>
+#include <fcntl.h>
 #include <kos/thread.h>
 #include <kos/mutex.h>
 #include <kos/nmmgr.h>
@@ -55,45 +56,6 @@ fs_hnd_t * fd_table[FD_SETSIZE] = { NULL };
 extern char *realpath(const char *, char[PATH_MAX]);
 
 
-/* Internal file commands for root dir reading */
-static fs_hnd_t * fs_root_opendir(void) {
-    return calloc(1, sizeof(fs_hnd_t));
-}
-
-/* Not thread-safe right now */
-static dirent_t root_readdir_dirent;
-static dirent_t *fs_root_readdir(fs_hnd_t * handle) {
-    nmmgr_handler_t *nmhnd;
-    nmmgr_list_t    *nmhead;
-    int         cnt;
-
-    cnt = (int)handle->hnd;
-
-    nmhead = nmmgr_get_list();
-
-    LIST_FOREACH(nmhnd, nmhead, list_ent) {
-        if(nmhnd->type != NMMGR_TYPE_VFS)
-            continue;
-
-        if(!(cnt--))
-            break;
-    }
-
-    if(nmhnd == NULL)
-        return NULL;
-
-    root_readdir_dirent.attr = O_DIR;
-    root_readdir_dirent.size = -1;
-
-    if(nmhnd->pathname[0] == '/')
-        strcpy(root_readdir_dirent.name, nmhnd->pathname + 1);
-    else
-        strcpy(root_readdir_dirent.name, nmhnd->pathname);
-
-    handle->hnd = (void *)((int)handle->hnd + 1);
-
-    return &root_readdir_dirent;
-}
 
 /* This version of open deals with raw handles only. This is below the level
    of file descriptors. It is used by the standard fs_open below. The
@@ -106,21 +68,17 @@ static fs_hnd_t * fs_hnd_open(const char *fn, int mode) {
     fs_hnd_t    *hnd;
     char        rfn[PATH_MAX];
 
+    printf("%s fn: %s\n", __FUNCTION__, fn);
+
     if(!realpath(fn, rfn))
         return NULL;
 
-    /* Are they trying to open the root? */
-    if(!strcmp(rfn, "/")) {
-        if((mode & O_DIR))
-            return fs_root_opendir();
-        else {
-            errno = EISDIR;
-            return NULL;
-        }
-    }
+    printf("rfn: %s\n", rfn);
 
     /* Look for a handler */
     nmhnd = nmmgr_lookup(rfn);
+    printf("nmhnd: %08X\n", nmhnd);
+    printf("pathname: %s\n", nmhnd->pathname);
 
     if(nmhnd == NULL || nmhnd->type != NMMGR_TYPE_VFS) {
         errno = ENOENT;
@@ -509,9 +467,6 @@ dirent_t *fs_readdir(file_t fd) {
         return NULL;
     }
 
-    if(h->handler == NULL)
-        return fs_root_readdir(h);
-
     if(h->handler->readdir == NULL) {
         errno = ENOSYS;
         return NULL;
@@ -822,6 +777,8 @@ int fs_stat(const char *path, struct stat *buf, int flag) {
     vfs_handler_t *vfs;
     char fullpath[PATH_MAX];
 
+    printf("%s path: %s\n", __FUNCTION__, path);
+
     /* Verify the input... */
     if(!buf || !path) {
         errno = EFAULT;
@@ -840,6 +797,10 @@ int fs_stat(const char *path, struct stat *buf, int flag) {
         strcpy(fullpath, fs_getwd());
         strcat(fullpath, "/");
         strcat(fullpath, path);
+    }
+
+    if (fullpath[0] == '/' && fullpath[1] == '/') {
+        fullpath[1] = '\0';
     }
 
     /* Look for the handler */

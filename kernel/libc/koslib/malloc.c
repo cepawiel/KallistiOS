@@ -47,11 +47,7 @@ static spinlock_t mALLOC_MUTEx = SPINLOCK_INITIALIZER;
 #define MALLOC_PREACTION   ({ spinlock_lock(&mALLOC_MUTEx); 0; })
 #define MALLOC_POSTACTION  ({ spinlock_unlock(&mALLOC_MUTEx); 0; })
 
-/* Use this from within an IRQ to determine if it's safe
-   to do memory allocation stuff */
-int malloc_irq_safe(void) {
-    return !spinlock_is_locked(&mALLOC_MUTEx);
-}
+
 
 /* <unistd.h> doesn't define this in strict standard-compliant mode, so do so
    here instead. */
@@ -4183,7 +4179,9 @@ Void_t* mALLOc(bytes) size_t bytes;
       chunks are placed in bins.
     */
 
+    printf("av: %08X\n", av);
     while((victim = unsorted_chunks(av)->bk) != unsorted_chunks(av)) {
+        printf("victim: %08X\n", victim);
         bck = victim->bk;
         size = chunksize(victim);
 
@@ -4217,7 +4215,9 @@ Void_t* mALLOc(bytes) size_t bytes;
 
         /* remove from unsorted list */
         unsorted_chunks(av)->bk = bck;
+        printf("malloc bck: %08X\n", bck);
         bck->fd = unsorted_chunks(av);
+        printf("after bck defef\n");
 
         /* Take now instead of binning if exact fit */
 

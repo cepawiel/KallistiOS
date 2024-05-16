@@ -162,14 +162,15 @@ int  __weak arch_auto_init(void) {
     nmmgr_init();
 
     fs_init();          /* VFS */
+    fs_root_init();
     fs_pty_init();          /* Pty */
-    fs_ramdisk_init();      /* Ramdisk */
+    // fs_ramdisk_init();      /* Ramdisk */
     KOS_INIT_FLAG_CALL(fs_romdisk_init);    /* Romdisk */
 
 /* The arc4random_buf() function used for random & urandom is only
    available in newlib starting with version 2.4.0 */
 #if defined(__NEWLIB__) && !(__NEWLIB__ < 2 && __NEWLIB_MINOR__ < 4)
-    fs_dev_init();          /* /dev/urandom etc. */
+    // fs_dev_init();          /* /dev/urandom etc. */
 #else
 #warning "/dev filesystem is not supported with Newlib < 2.4.0"
 #endif
@@ -182,10 +183,10 @@ int  __weak arch_auto_init(void) {
 #ifndef _arch_sub_naomi
     if(!(__kos_init_flags & INIT_NO_DCLOAD) && *DCLOADMAGICADDR == DCLOADMAGICVALUE) {
         dbglog(DBG_INFO, "dc-load console support enabled\n");
-        fs_dcload_init();
+        // fs_dcload_init();
     }
 
-    fs_iso9660_init();
+    // fs_iso9660_init();
 #endif
 
     KOS_INIT_FLAG_CALL(vmu_fs_init);
@@ -219,16 +220,16 @@ void  __weak arch_auto_shutdown(void) {
     pvr_shutdown();
     library_shutdown();
 #ifndef _arch_sub_naomi
-    fs_dcload_shutdown();
+    // fs_dcload_shutdown();
 #endif
     KOS_INIT_FLAG_CALL(vmu_fs_shutdown);
 #ifndef _arch_sub_naomi
-    fs_iso9660_shutdown();
+    // fs_iso9660_shutdown();
 #endif
 #if defined(__NEWLIB__) && !(__NEWLIB__ < 2 && __NEWLIB_MINOR__ < 4)
-    fs_dev_shutdown();
+    // fs_dev_shutdown();
 #endif
-    fs_ramdisk_shutdown();
+    // fs_ramdisk_shutdown();
     KOS_INIT_FLAG_CALL(fs_romdisk_shutdown);
     fs_pty_shutdown();
     fs_shutdown();
@@ -308,7 +309,7 @@ void arch_shutdown(void) {
 #endif
 
     if(__kos_init_flags & INIT_MALLOCSTATS) {
-        malloc_stats();
+        // malloc_stats();
     }
 
     /* Shut down IRQs */

@@ -18,6 +18,8 @@ struct dirent * readdir(DIR * dir) {
         return NULL;
     }
 
+    printf("readdir: %08X\n", dir);
+
     d = fs_readdir(dir->fd);
 
     if(!d)
@@ -27,12 +29,17 @@ struct dirent * readdir(DIR * dir) {
     dir->d_ent.d_off = 0;
     dir->d_ent.d_reclen = 0;
 
-    if(d->size < 0)
-        dir->d_ent.d_type = 4;  // DT_DIR
-    else
-        dir->d_ent.d_type = 8;  // DT_REG
+    dir->d_ent.d_type = d->type;
+    // dir->d_ent.d_type = DT_DIR;
+
+    // if(d->size < 0)
+    //     dir->d_ent.d_type = DT_DIR;
+    // else
+    //     dir->d_ent.d_type = DT_REG;
 
     strncpy(dir->d_ent.d_name, d->name, sizeof(dir->d_ent.d_name));
+
+    printf("readdir name: %s\n", dir->d_ent.d_name);
 
     return &dir->d_ent;
 }

@@ -18,10 +18,25 @@ static int stat_int(const char *path, struct stat *buf, int flag) {
     file_t fp;
     mode_t md;
 
+    dbgio_printf("newlib_stat: %08X\n", path);
+    
+    dbgio_printf("newlib_stat: %s\t%08X\n", path, flag);
+    for(int i =0 ; i < 4; i++) {
+        dbgio_printf("[%02X] ", path[i]);
+    }
+    dbgio_printf("\n");
+
+    if (path[0] == 0) {
+        printf("path is empty\n");
+        errno = ENOENT;
+        return -1;
+    }
+
     /* Try to use the native stat function first... */
     if(!(rv = fs_stat(path, buf, flag)) || errno != ENOSYS)
         return rv;
 
+    dbgio_printf("FS does not support stat, faking\n");
     /* If this filesystem doesn't implement stat, then fake it to get a few
        important pieces... */
     errno = err;
