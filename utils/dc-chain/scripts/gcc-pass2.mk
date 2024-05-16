@@ -24,6 +24,7 @@ $(build_gcc_pass2): logdir
           CC="$(CC)" \
           CXX="$(CXX)" \
           $(static_flag) \
+          CXXFLAGS_FOR_TARGET="-g3 -fno-inline -O0" \
           $(to_log)
 	$(MAKE) $(makejobs) -C $(build) DESTDIR=$(DESTDIR) $(to_log)
 	$(MAKE) -C $(build) $(install_mode) DESTDIR=$(DESTDIR) $(to_log)
