@@ -20,12 +20,17 @@ jobs:
     name: Build Toolchain Containers
     runs-on: [self-hosted, X64]
     strategy:
+      fail-fast: false
       matrix:
         include:
-          # - { toolchain_profile: '11.4.0' }
-          # - { toolchain_profile: '12.3.0' }
+          - { toolchain_profile: '9.3.0-legacy' }
+          - { toolchain_profile: '11.4.0' }
+          - { toolchain_profile: '12.3.0' }
           - { toolchain_profile: 'stable' }
-          # - { toolchain_profile: '14.1.0' }
+          - { toolchain_profile: '14.1.0' }
+          - { toolchain_profile: '13.2.1-dev' }
+          - { toolchain_profile: '14.1.1-dev' }
+          - { toolchain_profile: '15.0.0-dev' }
 
     steps:
       - uses: actions/checkout@v4
@@ -48,18 +53,12 @@ jobs:
           GH_TOK: ${{ secrets.GITHUB_TOKEN }}
         if: "${{ env.GH_TOK != '' }}"
         with:
-          images: ghcr.io/cepawiel/toolchain-kos-sh4-${{ matrix.toolchain_profile }}
+          images: ghcr.io/cepawiel/toolchain-kos-sh4
           flavor: |
             latest=false
+            suffix=-${{ matrix.toolchain_profile }}
           tags: |
             type=sha
-
-#            type=raw,value={{date 'YYYY-MM-DD' tz='America/Chicago'}}-${{ inputs.tag }}
-#            type=raw,value=sha-${{ inputs.sha }}-${{ inputs.tag }}
-#            type=raw,value=latest-${{ inputs.tag }}
-#            type=raw,value={{date 'YYYY-MM-DD' tz='America/Chicago'}},enabled=${{ inputs.latest }}
-#            type=raw,value=sha-${{ inputs.sha }},enabled=${{ inputs.latest }}
-#            type=raw,value=latest,enabled=${{ inputs.latest }}
 
       - name: Build Toolchain Container
         uses: docker/build-push-action@v5
@@ -82,9 +81,10 @@ jobs:
           GH_TOK: ${{ secrets.GITHUB_TOKEN }}
         if: "${{ env.GH_TOK != '' }}"
         with:
-          images: ghcr.io/cepawiel/kos-dc-${{ matrix.toolchain_profile }}
+          images: ghcr.io/cepawiel/kos-dc
           flavor: |
             latest=false
+            suffix=-${{ matrix.toolchain_profile }}
           tags: |
             type=sha
 
@@ -109,9 +109,10 @@ jobs:
           GH_TOK: ${{ secrets.GITHUB_TOKEN }}
         if: "${{ env.GH_TOK != '' }}"
         with:
-          images: ghcr.io/cepawiel/kos-ports-dc-${{ matrix.toolchain_profile }}
+          images: ghcr.io/cepawiel/kos-ports-dc
           flavor: |
             latest=false
+            suffix=-${{ matrix.toolchain_profile }}
           tags: |
             type=sha
 
