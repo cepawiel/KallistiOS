@@ -22,6 +22,7 @@ FROM build-deps as toolchain
 ARG KOS_PATH
 ARG DCCHAIN_PATH
 ARG TOOLCHAIN_PROFILE
+ARG DCCHAIN_ARGS
 
 # Copy Necessary Data into Container
 # By only copying the necessary files to build the toolchain docker
@@ -37,7 +38,7 @@ COPY ./utils/dc-chain ${DCCHAIN_PATH}
 ARG BUILD_TYPE=kos
 
 RUN cd ${DCCHAIN_PATH} \
-	&& make -j2 verbose=0 makejobs=$(nproc)
+	&& make -j2 ${DCCHAIN_ARGS} verbose=0 makejobs=$(nproc)
 
 # build kos and related tools
 # TODO: Could probably use a slimmer base image

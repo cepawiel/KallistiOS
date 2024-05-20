@@ -67,7 +67,7 @@ jobs:
           file: .github/workflows/Dockerfile
           target: toolchain
           build-args: |
-            DCCHAIN_ARGS="toolchain_profile=${{ matrix.toolchain_profile }}"
+            DCCHAIN_ARGS=toolchain_profile=${{ matrix.toolchain_profile }} gnu_mirror=mirrors.kernel.org
           tags: ${{ steps.toolchain-meta.outputs.tags }}
           labels: ${{ steps.toolchain-meta.outputs.labels }}
           push: ${{ needs.setup.outputs.github-token-exists == 'true' }}
@@ -130,23 +130,18 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.toolchain_profile }}
           cache-to: type=gha,mode=max,scope=${{ matrix.toolchain_profile }}
 
-  #     # - name: Checkout KOS-Ports Repo
-  #     #   if: ${{ inputs.build_type == 'kos' }}
-  #     #   run: git clone https://github.com/KallistiOS/kos-ports -b master containers/PORTS
-
- #     - name: Build Examples
-  #       run: |
-  #         echo ${{ steps.toolchain-meta.outputs.tags }}
-  #         # docker run --rm -it \
-  #         #   -v $(shell pwd)/output:/output \
-  #         #   -w /opt/toolchains/dc/kos/examples/dreamcast \
-  #         #   $(ports_tag) \
-  #         #   "mkdir /examples && make && make dist && find -type f -name \"*.elf\" -exec cp {} /examples \; && cd / && tar -czf output/$(short_name)-examples.tar.gz examples && ls -la output"
+      - name: Build Examples
+        run: |
+          echo ${{ steps.toolchain-meta.outputs.tags }}
+          docker run --rm \
+            -v $(pwd)/output:/output \
+            -w /opt/toolchains/dc/kos/examples/dreamcast \
+            ${{ steps.toolchain-meta.outputs.tags }} \
+            "mkdir /examples && make && make dist && find -type f -name \"*.elf\" -exec cp {} /examples \; && cd / && tar -czf output/examples-${{ matrix.toolchain_profile }}.tar.gz examples && ls -la output"
 
 
-  #     - name: Upload Examples
-  #       uses: actions/upload-artifact@v3
-  #       with:
-  #         name: examples-${{ inputs.name }}-${{ inputs.tag }}
-  #         path: output/examples-${{ inputs.name }}-${{ inputs.tag }}.tar.gz
-
+      - name: Upload Examples
+        uses: actions/upload-artifact@v3
+        with:
+         name: examples-${{ matrix.toolchain_profile }}
+         path: output/examples-${{ matrix.toolchain_profile }}.tar.gz
