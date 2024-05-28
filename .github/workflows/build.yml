@@ -138,7 +138,7 @@ jobs:
           echo ${{ steps.kos-ports-meta.outputs.tags }}
           mkdir -p output
           cp .github/workflows/build_examples.sh output/build_examples.sh
-          la -la output
+          ls -la output
           docker run --rm \
             -v $(pwd)/output:/output \
             -w /opt/toolchains/dc/kos/examples/dreamcast \
