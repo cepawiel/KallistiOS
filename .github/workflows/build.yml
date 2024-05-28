@@ -23,14 +23,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { toolchain_profile: '9.3.0-legacy' }
-          - { toolchain_profile: '11.4.0' }
-          - { toolchain_profile: '12.3.0' }
+          # - { toolchain_profile: '9.3.0-legacy' }
+          # - { toolchain_profile: '9.5.0-winxp' }
+          # - { toolchain_profile: '10.5.0' }
+          # - { toolchain_profile: '11.4.0' }
+          # - { toolchain_profile: '12.3.0' }
           - { toolchain_profile: 'stable' }
-          - { toolchain_profile: '14.1.0' }
-          - { toolchain_profile: '13.2.1-dev' }
-          - { toolchain_profile: '14.1.1-dev' }
-          - { toolchain_profile: '15.0.0-dev' }
+          # - { toolchain_profile: '13.3.0' }
+          # - { toolchain_profile: '14.1.0' }
+          # - { toolchain_profile: '13.3.1-dev' }
+          # - { toolchain_profile: '14.1.1-dev' }
+          # - { toolchain_profile: '15.0.0-dev' }
 
     steps:
       - uses: actions/checkout@v4
@@ -95,7 +98,7 @@ jobs:
           file: .github/workflows/Dockerfile
           target: kos
           build-args: |
-            DCCHAIN_ARGS="toolchain_profile=${{ matrix.toolchain_profile }}"
+            DCCHAIN_ARGS=toolchain_profile=${{ matrix.toolchain_profile }} gnu_mirror=mirrors.kernel.org
           tags: ${{ steps.kos-meta.outputs.tags }}
           labels: ${{ steps.kos-meta.outputs.labels }}
           push: ${{ needs.setup.outputs.github-token-exists == 'true' }}
@@ -123,7 +126,7 @@ jobs:
           file: .github/workflows/Dockerfile
           target: kos-ports
           build-args: |
-            DCCHAIN_ARGS="toolchain_profile=${{ matrix.toolchain_profile }}"
+            DCCHAIN_ARGS=toolchain_profile=${{ matrix.toolchain_profile }} gnu_mirror=mirrors.kernel.org
           tags: ${{ steps.kos-ports-meta.outputs.tags }}
           labels: ${{ steps.kos-ports-meta.outputs.labels }}
           push: ${{ needs.setup.outputs.github-token-exists == 'true' }}
@@ -132,16 +135,20 @@ jobs:
 
       - name: Build Examples
         run: |
-          echo ${{ steps.toolchain-meta.outputs.tags }}
+          echo ${{ steps.kos-ports-meta.outputs.tags }}
+          mkdir output
+          cp .github/workflows/build_examples.sh output/build_examples.sh
+          ls -la .
+          la -la output
           docker run --rm \
             -v $(pwd)/output:/output \
             -w /opt/toolchains/dc/kos/examples/dreamcast \
-            ${{ steps.toolchain-meta.outputs.tags }} \
-            "mkdir /examples && make && make dist && find -type f -name \"*.elf\" -exec cp {} /examples \; && cd / && tar -czf output/examples-${{ matrix.toolchain_profile }}.tar.gz examples && ls -la output"
+            ${{ steps.kos-ports-meta.outputs.tags }} \
+            "ls -la /output && /output/build_examples.sh ${{ steps.kos-ports-meta.outputs.tags }}"
 
 
       - name: Upload Examples
         uses: actions/upload-artifact@v3
         with:
-         name: examples-${{ matrix.toolchain_profile }}
-         path: output/examples-${{ matrix.toolchain_profile }}.tar.gz
+         name: examples-${{ steps.kos-ports-meta.outputs.tags }}
+         path: output/examples-${{ steps.kos-ports-meta.outputs.tags }}.tar.gz
