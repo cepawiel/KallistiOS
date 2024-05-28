@@ -136,7 +136,7 @@ jobs:
       - name: Build Examples
         run: |
           echo ${{ steps.kos-ports-meta.outputs.tags }}
-          mkdir output
+          mkdir -p output
           cp .github/workflows/build_examples.sh output/build_examples.sh
           ls -la .
           la -la output
