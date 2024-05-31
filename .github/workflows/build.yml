@@ -137,17 +137,39 @@ jobs:
         run: |
           echo ${{ steps.kos-ports-meta.outputs.tags }}
           mkdir -p output
-          cp .github/workflows/build_examples.sh output/build_examples.sh
+          cp .github/workflows/build_examples.sh output/.
           ls -la output
-          docker run --rm \
-            -v $(pwd)/output:/output \
-            -w /opt/toolchains/dc/kos/examples/dreamcast \
-            ${{ steps.kos-ports-meta.outputs.tags }} \
-            "/output/build_examples.sh ${{ steps.kos-ports-meta.outputs.tags }}"
+
+
+# docker run --rm \
+#   -v output:/output \
+#   -w /opt/toolchains/dc/kos/examples/dreamcast \
+#   ${{ steps.kos-ports-meta.outputs.tags }} \
+#   "/output/build_examples.sh ${{ matrix.toolchain_profile }}"
+
+      - uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ steps.kos-ports-meta.outputs.tags }}
+          options: -v ${{ github.workspace }}/output:/output -w /opt/toolchains/dc/kos/examples/dreamcast
+          run: |
+            ls -la /output
+            echo Building examples for $1
+
+            set -x
+            set -e
+
+            mkdir /examples
+            make 
+            make dist 
+            find -type f -name \"*.elf\" -exec cp {} /examples \; 
+            cd /
+            tar -czf output/examples-${{ matrix.toolchain_profile }}.tar.gz examples
+            ls -la output
+            ls -la /output
 
 
       - name: Upload Examples
         uses: actions/upload-artifact@v3
         with:
-         name: examples-${{ steps.kos-ports-meta.outputs.tags }}
-         path: output/examples-${{ steps.kos-ports-meta.outputs.tags }}.tar.gz
+         name: examples-${{ matrix.toolchain_profile }}
+         path: output/examples-${{ matrix.toolchain_profile }}.tar.gz
