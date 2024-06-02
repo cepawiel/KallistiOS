@@ -136,40 +136,45 @@ jobs:
       - name: Build Examples
         run: |
           echo ${{ steps.kos-ports-meta.outputs.tags }}
-          mkdir -p output
-          cp .github/workflows/build_examples.sh output/.
-          ls -la output
+          ls -la ${{ github.workspace }}
+          ls -la ${{ github.workspace }}/examples
+          ls -la ${{ github.workspace }}/examples/dreamcast
+          docker run --rm \
+            -v ${{ github.workspace }}/examples/dreamcast:/examples \
+            -w /examples \
+            ${{ steps.kos-ports-meta.outputs.tags }} make
+
+          find examples -name '*.elf' -print0 | tar -czf examples-${{ matrix.toolchain_profile }}.tar.gz --null --files-from -
+          ls -la
+          ls -la ${{ github.workspace }}
 
 
-# docker run --rm \
-#   -v output:/output \
-#   -w /opt/toolchains/dc/kos/examples/dreamcast \
-#   ${{ steps.kos-ports-meta.outputs.tags }} \
-#   "/output/build_examples.sh ${{ matrix.toolchain_profile }}"
+      # - uses: addnab/docker-run-action@v3
+      #   with:
+      #     image: ${{ steps.kos-ports-meta.outputs.tags }}
+      #     options: -v ${{ github.workspace }}/output:/output -w /opt/toolchains/dc/kos/examples/dreamcast
+      #     run: |
+      #       ls -la /output
+      #       echo Building examples for ${{ steps.kos-ports-meta.outputs.tags }}
 
-      - uses: addnab/docker-run-action@v3
-        with:
-          image: ${{ steps.kos-ports-meta.outputs.tags }}
-          options: -v ${{ github.workspace }}/output:/output -w /opt/toolchains/dc/kos/examples/dreamcast
-          run: |
-            ls -la /output
-            echo Building examples for $1
+      #       set -x
+      #       set -e
 
-            set -x
-            set -e
+      #       echo $KOS_BASE
+      #       make 
+      #       make dist 
 
-            mkdir /examples
-            make 
-            make dist 
-            find -type f -name \"*.elf\" -exec cp {} /examples \; 
-            cd /
-            tar -czf output/examples-${{ matrix.toolchain_profile }}.tar.gz examples
-            ls -la output
-            ls -la /output
+      #       mkdir /examples
+      #       find -type f -name \"*.elf\" -exec cp {} /examples \; 
+      #       cd /
+            
+      #       tar -czf output/examples-${{ matrix.toolchain_profile }}.tar.gz examples
+      #       ls -la output
+      #       ls -la /output
 
 
       - name: Upload Examples
         uses: actions/upload-artifact@v3
         with:
          name: examples-${{ matrix.toolchain_profile }}
-         path: output/examples-${{ matrix.toolchain_profile }}.tar.gz
+         path: examples-${{ matrix.toolchain_profile }}.tar.gz
