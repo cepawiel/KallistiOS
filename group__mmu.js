@@ -24,8 +24,8 @@ var group__mmu =
       [ "sub", "structmmucontext__t.html#a1f2b43a08d90a39bb784925e8b8e448d", null ]
     ] ],
     [ "MMU_SUB_PAGES", "group__mmu.html#ga1da93d07c858b66f16d8fb8d55bfc309", null ],
-    [ "mmu_mapfunc_t", "group__mmu.html#ga6dc2d9e7751d581af17d9c3384308dd5", null ],
-    [ "mmu_context_create", "group__mmu.html#gac71312baf248d1acba6a0ee7a5c0a972", null ],
+    [ "mmu_mapfunc_t", "group__mmu.html#ga85804e94e2c6f22c8d1d1f2c216ba0d1", null ],
+    [ "mmu_context_create", "group__mmu.html#ga8c300b842e699577ec52b05215ff497a", null ],
     [ "mmu_context_destroy", "group__mmu.html#ga00ee028bb7e383e6a478d9c0bc38e394", null ],
     [ "mmu_copyin", "group__mmu.html#gacb49f02b9c3421c3db648983eac56b6f", null ],
     [ "mmu_copyv", "group__mmu.html#gac159acf73a24f4a7cdada65b31b04616", null ],

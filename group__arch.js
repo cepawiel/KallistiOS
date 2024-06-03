@@ -48,5 +48,5 @@ var group__arch =
     [ "hardware_sys_init", "group__arch.html#ga66f6da99c5bff5dfc1fa21f9c3b7cef5", null ],
     [ "hardware_sys_mode", "group__arch.html#gafd8fcf4bf29661fe4a507a3868097d73", null ],
     [ "mm_init", "group__arch.html#ga59f9a3cd68e7a6e61c379ef6c0dd818a", null ],
-    [ "mm_sbrk", "group__arch.html#ga21b6cedb7e3fd8a815155ad48131ce58", null ]
+    [ "mm_sbrk", "group__arch.html#ga73b779d8bd88a8f1d7a2077b88dff369", null ]
 ];

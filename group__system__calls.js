@@ -5,7 +5,7 @@ var group__system__calls =
     [ "syscall_flashrom_info", "group__system__calls.html#gab4ab1c12c6f3760d1d76ec993033d5e6", null ],
     [ "syscall_flashrom_read", "group__system__calls.html#gaf9721acd7ec0366550d358d3d65ba31d", null ],
     [ "syscall_flashrom_write", "group__system__calls.html#ga8875bf6e48137ca674d2bb4706bfa9a3", null ],
-    [ "syscall_font_address", "group__system__calls.html#ga67ad96b3788d9539097c4e03a602927c", null ],
+    [ "syscall_font_address", "group__system__calls.html#ga6569b5fab295cc6a799536c79c15c139", null ],
     [ "syscall_font_lock", "group__system__calls.html#gafb1c6d615fcce61cdacc8a3bbe2a537a", null ],
     [ "syscall_font_unlock", "group__system__calls.html#gacfe1e581c418166fcf345748a7dcb17d", null ],
     [ "syscall_gdrom_abort_command", "group__system__calls.html#ga7232d83268a416c801244029b68242b1", null ],

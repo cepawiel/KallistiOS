@@ -5,5 +5,5 @@ var group__pvr__list__mgmt =
     [ "pvr_list_flush", "group__pvr__list__mgmt.html#ga1231dd8ea72341c986017315985cdfa4", null ],
     [ "pvr_list_prim", "group__pvr__list__mgmt.html#ga4709d711ae9cdf7dae2f487dfa50c89a", null ],
     [ "pvr_prim", "group__pvr__list__mgmt.html#gafb280076fca011cf88edca3446ba3768", null ],
-    [ "pvr_set_vertbuf", "group__pvr__list__mgmt.html#ga4f1b7b53e80b8f60495740879e1cf014", null ]
+    [ "pvr_set_vertbuf", "group__pvr__list__mgmt.html#gac949dccd939a8855422195ccc5243f19", null ]
 ];

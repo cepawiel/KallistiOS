@@ -29,7 +29,7 @@ var group__irqs =
     [ "irq_disable", "group__irqs.html#gafb0c3c3a580a4319c69c2a46c71b5d15", null ],
     [ "irq_enable", "group__irqs.html#ga0a004f8aa16635895a42e0667f26c420", null ],
     [ "irq_force_return", "group__irqs.html#ga541da110381974e04b14441962070e04", null ],
-    [ "irq_get_context", "group__irqs.html#ga52accbe538102f530b423248572f9dfe", null ],
+    [ "irq_get_context", "group__irqs.html#ga02856bd8678dd7b4390711c8c4fa9734", null ],
     [ "irq_get_global_handler", "group__irqs.html#ga3ff70e98c4984804ff9bbaa0a436cb97", null ],
     [ "irq_get_handler", "group__irqs.html#ga0a3e4d0e6bd19c3db2a80b7507b41ced", null ],
     [ "irq_init", "group__irqs.html#ga679618623d449199ef1092042ccb4dca", null ],

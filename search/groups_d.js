@@ -1,7 +1,9 @@
 var searchData=
 [
-  ['name_20manager_6460',['Name Manager',['../group__system__namemgr.html',1,'']]],
-  ['ndp_6461',['NDP',['../group__networking__ndp.html',1,'']]],
-  ['netif_5ft_20flags_6462',['netif_t Flags',['../group__net__drivers__flags.html',1,'']]],
-  ['networking_6463',['Networking',['../group__networking.html',1,'']]]
+  ['h_5ferrno_20error_20values_0',['h_errno Error Values',['../group__herrno__vals.html',1,'']]],
+  ['handler_20types_1',['Handler Types',['../group__nmmgr__types.html',1,'']]],
+  ['header_20flags_2',['Section Header Flags',['../group__elf__hdrflags.html',1,'']]],
+  ['header_20package_3',['Header Package',['../group__vmu__package.html',1,'']]],
+  ['header_20types_4',['Section Header Types',['../group__elf__sections.html',1,'']]],
+  ['headers_5',['Headers',['../group__pvr__primitives__headers.html',1,'']]]
 ];

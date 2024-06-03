@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['_2fdev_2fnull_6286',['/dev/null',['../group__vfs__null.html',1,'']]]
+  ['1_20rt_5fconfig1_20bits_0',['RTL8139C Config Register 1 (RT_CONFIG1) Bits',['../group__bba__config1bits.html',1,'']]]
 ];
