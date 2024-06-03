@@ -29,11 +29,11 @@ ARG DCCHAIN_ARGS
 # can cache the toolchain layer as long as none of the files in these directories
 # are changed. Doing so would trigger rebuilding the toolchain.
 # TODO: More specifically copy includes to avoid rebuilds
-COPY ./include ${KOS_PATH}/include
-COPY ./kernel/arch/dreamcast/include/arch ${KOS_PATH}/kernel/arch/dreamcast/include/arch
-COPY ./kernel/arch/dreamcast/include/dc ${KOS_PATH}/kernel/arch/dreamcast/include/dc
-COPY ./kernel/arch/dreamcast/kernel ${KOS_PATH}/kernel/arch/dreamcast/kernel
-COPY ./utils/dc-chain ${DCCHAIN_PATH}
+COPY kos/include ${KOS_PATH}/include
+COPY kos/kernel/arch/dreamcast/include/arch ${KOS_PATH}/kernel/arch/dreamcast/include/arch
+COPY kos/kernel/arch/dreamcast/include/dc ${KOS_PATH}/kernel/arch/dreamcast/include/dc
+COPY kos/kernel/arch/dreamcast/kernel ${KOS_PATH}/kernel/arch/dreamcast/kernel
+COPY kos/utils/dc-chain ${DCCHAIN_PATH}
 
 ARG BUILD_TYPE=kos
 
@@ -48,11 +48,10 @@ FROM toolchain as kos
 # copy entire KOS folder into container
 # TODO: copy only folders necessary for build. 
 #		Example: Changes to doc/ will trigger a rebuild which might be unwanted
-COPY . /opt/toolchains/dc/kos
+COPY kos /opt/toolchains/dc/kos
 
 # setup environ.sh file using default
 RUN cd /opt/toolchains/dc/kos \
-	&& ls -la \
 	&& cp doc/environ.sh.sample environ.sh \
 	# create link so environ.sh is sourced for interactive shells
 	# example: docker run --rm -it $TAG /bin/bash
@@ -86,6 +85,6 @@ RUN cd /opt/toolchains/dc/kos && make
 
 
 FROM kos as kos-ports
-RUN git clone https://github.com/KallistiOS/kos-ports /opt/toolchains/dc/kos-ports
+COPY ports /opt/toolchains/dc/kos-ports
 RUN cd /opt/toolchains/dc/kos-ports \
 	&& sh utils/build-all.sh
