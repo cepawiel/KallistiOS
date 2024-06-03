@@ -40,14 +40,18 @@ jobs:
         with:
           path: kos
 
-      - name: Setup .dockerignore
-        run: |
-          echo "kos/.github" >> .dockerignore
-          cat .dockerignore
 
       - name: Fixup Repo for Container Builds
         run: |
+          sed -i -e "s/##gitsha##/$(git describe --always)/g" kos/.github/workflows/make_banner.sh
           cp kos/.github/workflows/make_banner.sh kos/kernel/arch/dreamcast/kernel/make_banner.sh
+
+      - name: Setup .dockerignore
+        run: |
+          echo "kos/.github"    >  .dockerignore
+          echo "kos/.git"       >> .dockerignore
+          echo "kos-ports/.git" >> .dockerignore
+          cat .dockerignore
 
       - uses: docker/setup-buildx-action@v3
 
