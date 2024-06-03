@@ -116,7 +116,7 @@ $(document).ready(function(){initNavTree('deprecated.html',''); initResizable();
 <dt>Global <a class="el" href="recursive__lock_8h.html#a205cb7f0bde9298d2bb2f12b73632cb5">rlock_destroy</a>  (recursive_lock_t *l) __depr("Use mutexes instead.")</dt>
 <dd><a class="anchor" id="_deprecated000008"></a> This function cleans up a recursive lock. It is an error to attempt to destroy a locked recursive lock. </dd>
 <dt>Global <a class="el" href="recursive__lock_8h.html#afb7be99a8a37c00232d9ec959734366c">rlock_is_locked</a>  (recursive_lock_t *l) __depr("Use mutexes instead.")</dt>
-<dd><a class="anchor" id="_deprecated000013"></a> This function checks whether or not a lock is currently held by any thread, including the calling thread. Note that this is <b>NOT</b> a safe way to check if a lock <em>will</em> be held by the time you get around to locking it. </dd>
+<dd><a class="anchor" id="_deprecated000014"></a> This function checks whether or not a lock is currently held by any thread, including the calling thread. Note that this is <b>NOT</b> a safe way to check if a lock <em>will</em> be held by the time you get around to locking it. </dd>
 <dt>Global <a class="el" href="recursive__lock_8h.html#a034f533b4ce8ce85be499001587fbda0">rlock_lock</a>  (recursive_lock_t *l) __depr("Use mutexes instead.")</dt>
 <dd><a class="anchor" id="_deprecated000009"></a> This function attempts to lock the requested lock, and if it cannot it will block until that is possible. </dd>
 <dt>Global <a class="el" href="recursive__lock_8h.html#a2ed36a549e48d00f68ea2965b098161c">rlock_lock_timed</a>  (recursive_lock_t *l, int timeout) __depr("Use mutexes instead.")</dt>
@@ -126,7 +126,7 @@ $(document).ready(function(){initNavTree('deprecated.html',''); initResizable();
 <dt>Global <a class="el" href="recursive__lock_8h.html#a0b556717e91615c67232a61f17522446">rlock_unlock</a>  (recursive_lock_t *l) __depr("Use mutexes instead.")</dt>
 <dd><a class="anchor" id="_deprecated000011"></a> This function releases the lock one time from the current thread. </dd>
 <dt>Global <a class="el" href="rwsem_8h.html#a2fb7ca5577aa0e4c43d062b12eea3223">rwsem_create</a>  (void) __depr("Use rwsem_init or RWSEM_INITIALIZER.")</dt>
-<dd><a class="anchor" id="_deprecated000014"></a> This function is formally deprecated, and should not be used in newly written code. Instead, please use <a class="el" href="rwsem_8h.html#aecabee230a8ad6b3b7b5877e6ab5c564" title="Initialize a reader/writer semaphore.">rwsem_init()</a>. </dd>
+<dd><a class="anchor" id="_deprecated000013"></a> This function is formally deprecated, and should not be used in newly written code. Instead, please use <a class="el" href="rwsem_8h.html#aecabee230a8ad6b3b7b5877e6ab5c564" title="Initialize a reader/writer semaphore.">rwsem_init()</a>. </dd>
 <dt>Global <a class="el" href="sem_8h.html#a25b57131b89d1d17a37d5938066eb895">sem_create</a>  (int value) __depr("Use sem_init or SEM_INITIALIZER.")</dt>
 <dd><a class="anchor" id="_deprecated000015"></a> This function is formally deprecated. Please update your code to use <a class="el" href="sem_8h.html#ac413622adbec71bdf2476b2121f7125c" title="Initialize a semaphore for use.">sem_init()</a> or static initialization with SEM_INITIALIZER instead. </dd>
 <dt>Global <a class="el" href="group__kthreads.html#ga064e68e032ac7b6478142c5806a4eb2c">thd_get_mode</a>  (void) __deprecated</dt>
