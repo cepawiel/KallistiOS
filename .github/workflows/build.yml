@@ -40,6 +40,10 @@ jobs:
         with:
           path: kos
 
+      - name: Setup .dockerignore
+        run: |
+          echo "kos/.github" >> .dockerignore
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Login to Github Container Registry
