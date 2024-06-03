@@ -1,9 +1,10 @@
 name: Build KOS Documentation
-on: workflow_dispatch
+on: push
 
 jobs:
   build-docs:
-    runs-on: "ubuntu-latest"
+    # use 24.04 for newer doxygen version (1.9.8)
+    runs-on: "ubuntu-24.04"
     steps:
       - uses: actions/checkout@v4
 
