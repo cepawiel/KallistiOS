@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['macros_6435',['Macros',['../group__system__macros.html',1,'']]],
+  ['maple_6436',['Maple',['../group__asic__events__maple.html',1,'']]],
+  ['maple_20bus_6437',['Maple Bus',['../group__maple.html',1,'']]],
+  ['math_6438',['Math',['../group__math.html',1,'']]],
+  ['matrices_6439',['Matrices',['../group__math__matrices.html',1,'']]],
+  ['memory_20capacity_6440',['Memory Capacity',['../group__hw__memsizes.html',1,'']]],
+  ['memory_20card_20function_6441',['Memory Card Function',['../group__maple__memcard.html',1,'']]],
+  ['message_20flags_6442',['Message Flags',['../group__msg__flags.html',1,'']]],
+  ['methods_6443',['Methods',['../group__netcfg__methods.html',1,'']]],
+  ['microphone_6444',['Microphone',['../group__peripherals__mic.html',1,'']]],
+  ['mii_20control_20bits_6445',['MII Control Bits',['../group__bba__miicb.html',1,'']]],
+  ['mii_20status_20bits_6446',['MII Status Bits',['../group__bba__miisb.html',1,'']]],
+  ['mini_6447',['Mini',['../group__video__fonts__mini.html',1,'']]],
+  ['mipmap_20bias_20modes_6448',['Mipmap Bias Modes',['../group__pvr__mip__bias.html',1,'']]],
+  ['mipmap_20toggle_6449',['Mipmap Toggle',['../group__pvr__mip__switch.html',1,'']]],
+  ['miscellaneous_6450',['Miscellaneous',['../group__video__misc.html',1,'']]],
+  ['mmu_6451',['MMU',['../group__mmu.html',1,'(Global Namespace)'],['../group__sh4__mmu__regs.html',1,'(Global Namespace)']]],
+  ['modem_6452',['Modem',['../group__modem.html',1,'']]],
+  ['modes_6453',['Modes',['../group__pvr__mod__modes.html',1,'(Global Namespace)'],['../group__video__modes.html',1,'(Global Namespace)']]],
+  ['modes_20of_20operation_6454',['Modes of Operation',['../group__modem__modes.html',1,'']]],
+  ['modifier_20keys_6455',['Modifier Keys',['../group__kbd__mods.html',1,'']]],
+  ['modifier_20volumes_6456',['Modifier Volumes',['../group__pvr__ctx__modvol.html',1,'']]],
+  ['mount_20flags_6457',['Mount Flags',['../group__ext2__mount__flags.html',1,'(Global Namespace)'],['../group__fat__mount__flags.html',1,'(Global Namespace)']]],
+  ['mouse_6458',['Mouse',['../group__mouse.html',1,'']]],
+  ['multicast_6459',['Multicast',['../group__networking__multicast.html',1,'']]]
+];

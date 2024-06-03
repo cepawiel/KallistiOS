@@ -1,0 +1,20 @@
+var searchData=
+[
+  ['ubc_5faccess_5feither_6186',['ubc_access_either',['../group__ubc.html#gga70941c81d979b9926c99896d6070e113a98a5bc9545189721b9ce7924bded0ccd',1,'ubc.h']]],
+  ['ubc_5faccess_5finstruction_6187',['ubc_access_instruction',['../group__ubc.html#gga70941c81d979b9926c99896d6070e113a00e33fa850ac111e5ade0e437b63b30e',1,'ubc.h']]],
+  ['ubc_5faccess_5foperand_6188',['ubc_access_operand',['../group__ubc.html#gga70941c81d979b9926c99896d6070e113a6f9a497206db645513847b735c2d26f5',1,'ubc.h']]],
+  ['ubc_5faddress_5fmask_5f10_6189',['ubc_address_mask_10',['../group__ubc.html#ggab5ebd52da3a29d60673fd5801b4b1116a7cff2ffed9c4b64b898dfb295433e8bc',1,'ubc.h']]],
+  ['ubc_5faddress_5fmask_5f12_6190',['ubc_address_mask_12',['../group__ubc.html#ggab5ebd52da3a29d60673fd5801b4b1116a01ec8bb71e2a222367a9b8c721d83db8',1,'ubc.h']]],
+  ['ubc_5faddress_5fmask_5f16_6191',['ubc_address_mask_16',['../group__ubc.html#ggab5ebd52da3a29d60673fd5801b4b1116a45a71fa1989ed18d893696275f732bf6',1,'ubc.h']]],
+  ['ubc_5faddress_5fmask_5f20_6192',['ubc_address_mask_20',['../group__ubc.html#ggab5ebd52da3a29d60673fd5801b4b1116aa376a5ec49d34b36899a2ecf70ae2764',1,'ubc.h']]],
+  ['ubc_5faddress_5fmask_5fall_6193',['ubc_address_mask_all',['../group__ubc.html#ggab5ebd52da3a29d60673fd5801b4b1116a708c01f8969cd5aae9e844e882304d4b',1,'ubc.h']]],
+  ['ubc_5faddress_5fmask_5fnone_6194',['ubc_address_mask_none',['../group__ubc.html#ggab5ebd52da3a29d60673fd5801b4b1116ac69ed18a89da9915874653ade45e805e',1,'ubc.h']]],
+  ['ubc_5frw_5feither_6195',['ubc_rw_either',['../group__ubc.html#gga7614d5d92af2dc5b6df1b9a2e9f936dea1cfa6c75490d25b40f0daf251d1b8d88',1,'ubc.h']]],
+  ['ubc_5frw_5fread_6196',['ubc_rw_read',['../group__ubc.html#gga7614d5d92af2dc5b6df1b9a2e9f936dea49043c8461f2b283fd8d2918187d8115',1,'ubc.h']]],
+  ['ubc_5frw_5fwrite_6197',['ubc_rw_write',['../group__ubc.html#gga7614d5d92af2dc5b6df1b9a2e9f936dea734289e2091aa205e6008924cc467874',1,'ubc.h']]],
+  ['ubc_5fsize_5f16bit_6198',['ubc_size_16bit',['../group__ubc.html#gga94bb4e346dfc77b15cb99600a5aceca5ab3b00a9eff1776c59146b714da2f5aa7',1,'ubc.h']]],
+  ['ubc_5fsize_5f32bit_6199',['ubc_size_32bit',['../group__ubc.html#gga94bb4e346dfc77b15cb99600a5aceca5ae2ed540727d17f5bbb6d445f5052bc1d',1,'ubc.h']]],
+  ['ubc_5fsize_5f64bit_6200',['ubc_size_64bit',['../group__ubc.html#gga94bb4e346dfc77b15cb99600a5aceca5a490bf3c01aa9508450a29aa0e869a8b1',1,'ubc.h']]],
+  ['ubc_5fsize_5f8bit_6201',['ubc_size_8bit',['../group__ubc.html#gga94bb4e346dfc77b15cb99600a5aceca5ac2de0e20355708acf03eec9172e24b80',1,'ubc.h']]],
+  ['ubc_5fsize_5fany_6202',['ubc_size_any',['../group__ubc.html#gga94bb4e346dfc77b15cb99600a5aceca5af942ed8370f926e0fd82b950bc825c73',1,'ubc.h']]]
+];

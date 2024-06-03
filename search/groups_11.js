@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['ramdisk_6491',['Ramdisk',['../group__vfs__ramdisk.html',1,'']]],
+  ['random_6492',['Random',['../group__vfs__rnd.html',1,'']]],
+  ['re_2dexecution_20type_6493',['Re-Execution Type',['../group__irq__reexec__codes.html',1,'']]],
+  ['read_20sector_20mode_6494',['Read Sector Mode',['../group__cd__read__sector__mode.html',1,'']]],
+  ['read_20sector_20part_6495',['Read Sector Part',['../group__cd__read__sector__part.html',1,'']]],
+  ['read_20subcode_20type_6496',['Read Subcode Type',['../group__cd__read__subcode__type.html',1,'']]],
+  ['real_2dtime_20clock_6497',['Real-Time Clock',['../group__rtc.html',1,'']]],
+  ['receive_20status_20bits_6498',['Receive Status Bits',['../group__bba__rbits.html',1,'']]],
+  ['region_20codes_6499',['Region Codes',['../group__hw__regions.html',1,'(Global Namespace)'],['../group__kbd__regions.html',1,'(Global Namespace)']]],
+  ['region_20settings_6500',['Region Settings',['../group__fr__region.html',1,'']]],
+  ['register_20values_6501',['Register Values',['../group__maple__reg__values.html',1,'']]],
+  ['registers_6502',['Registers',['../group__asic__regs.html',1,'(Global Namespace)'],['../group__bba__regs.html',1,'(Global Namespace)'],['../group__maple__regs.html',1,'(Global Namespace)'],['../group__pvr__registers.html',1,'(Global Namespace)']]],
+  ['relocation_20types_6503',['Relocation Types',['../group__elf__reltypes.html',1,'']]],
+  ['reset_20type_6504',['Reset Type',['../group__irq__reset__codes.html',1,'']]],
+  ['reset_20values_6505',['Reset Values',['../group__pvr__reset__vals.html',1,'']]],
+  ['responses_6506',['Responses',['../group__audio__aica__resp.html',1,'']]],
+  ['return_20values_6507',['Return Values',['../group__bba__txrv.html',1,'(Global Namespace)'],['../group__maple__func__rvs.html',1,'(Global Namespace)']]],
+  ['romdisk_6508',['Romdisk',['../group__vfs__romdisk.html',1,'']]],
+  ['rtl8139c_20config_20register_201_20_28rt_5fconfig1_29_20bits_6509',['RTL8139C Config Register 1 (RT_CONFIG1) Bits',['../group__bba__config1bits.html',1,'']]],
+  ['rtl8139c_20config_20register_204_20_28rt_5fconfig4_29_20bits_6510',['RTL8139C Config Register 4 (RT_CONFIG4) Bits',['../group__bba__config4bits.html',1,'']]],
+  ['rtl8139c_20config_20register_205_20_28rt_5fconfig5_29_20bits_6511',['RTL8139C Config Register 5 (RT_CONFIG5) Bits',['../group__bba__config5bits.html',1,'']]],
+  ['rtl8139c_20rx_20config_20register_20_28rt_5frxconfig_29_20bits_6512',['RTL8139C RX Config Register (RT_RXCONFIG) bits',['../group__bba__configrx.html',1,'']]],
+  ['rtl8139c_20transmit_20status_20bits_6513',['RTL8139C Transmit Status Bits',['../group__bba__tbits.html',1,'']]],
+  ['rumble_20pack_6514',['Rumble Pack',['../group__peripherals__rumble.html',1,'']]],
+  ['rx_6515',['RX',['../group__bba__rx.html',1,'']]]
+];
