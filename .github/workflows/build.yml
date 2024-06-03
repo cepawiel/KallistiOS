@@ -70,7 +70,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: .github/workflows/Dockerfile
+          file: kos/.github/workflows/Dockerfile
           target: toolchain
           build-args: |
             DCCHAIN_ARGS=toolchain_profile=${{ matrix.toolchain_profile }} gnu_mirror=mirrors.kernel.org

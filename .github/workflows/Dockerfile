@@ -52,6 +52,7 @@ COPY kos /opt/toolchains/dc/kos
 
 # setup environ.sh file using default
 RUN cd /opt/toolchains/dc/kos \
+	&& ls -la \
 	&& cp doc/environ.sh.sample environ.sh \
 	# create link so environ.sh is sourced for interactive shells
 	# example: docker run --rm -it $TAG /bin/bash
