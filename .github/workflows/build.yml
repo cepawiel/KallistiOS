@@ -153,8 +153,6 @@ jobs:
             -w /examples \
             ${{ steps.kos-ports-meta.outputs.tags }} make -j$(nproc)
 
-#         find examples -name '*.elf' -print0 | tar -czf examples-${{ matrix.toolchain_profile }}.tar.gz --null --files-from -
-
       - name: Upload Dreamcast Examples
         uses: actions/upload-artifact@v4
         with:
