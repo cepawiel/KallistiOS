@@ -18,7 +18,7 @@ jobs:
           name: dreamcast-kos-docs
           path: ${{ github.workspace }}/doc/reference
 
-      - name: Disable jekyll Processing
+      - name: Disable Jekyll Processing
         run: touch ${{ github.workspace }}/doc/reference/html/.nojekyll
 
       - name: Deploy to GitHub Pages
