@@ -82,7 +82,7 @@ ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["/bin/bash"]
 
 # build KOS
-RUN cd /opt/toolchains/dc/kos && make
+RUN cd /opt/toolchains/dc/kos && make -j$(nproc)
 
 
 FROM kos as kos-ports
