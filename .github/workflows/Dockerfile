@@ -10,7 +10,7 @@ ARG DCCHAIN_PATH=${KOS_PATH}/utils/dc-chain
 FROM debian:latest as build-deps
 
 RUN apt-get update && \
-	apt install -y \
+	apt-get install -y \
 		gawk patch bzip2 tar make libgmp-dev libmpfr-dev libmpc-dev \
 		gettext wget libelf-dev texinfo bison flex sed git build-essential \
 		diffutils curl libjpeg-dev libpng-dev python3 pkg-config cmake \
