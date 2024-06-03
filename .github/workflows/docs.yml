@@ -10,10 +10,10 @@ jobs:
       - name: Build Docs
         run: |
           sudo apt-get install -y doxygen
-          make docs
+          KOS_BASE=${{ github.workspace }} KOS_ARCH=dreamcast make docs
 
       - name: Upload Dreamcast Examples
         uses: actions/upload-artifact@v4
         with:
           name: dreamcast-kos-docs
-          path: ${{ github.workspace }}/kos/doc/reference
+          path: ${{ github.workspace }}/doc/reference
