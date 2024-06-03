@@ -43,6 +43,7 @@ jobs:
       - name: Setup .dockerignore
         run: |
           echo "kos/.github" >> .dockerignore
+          cat .dockerignore
 
       - uses: docker/setup-buildx-action@v3
 
