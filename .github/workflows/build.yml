@@ -123,7 +123,9 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: KallistiOS/kos-ports
+          # repository: KallistiOS/kos-ports
+          # Use fork as GCC 9 & 10 fail to build libtsunami
+          repository: cepawiel/kos-ports
           path: ports
 
       - name: Generate KOS-Ports Container Metadata
