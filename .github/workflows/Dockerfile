@@ -48,7 +48,21 @@ FROM toolchain as kos
 # copy entire KOS folder into container
 # TODO: copy only folders necessary for build. 
 #		Example: Changes to doc/ will trigger a rebuild which might be unwanted
-COPY kos /opt/toolchains/dc/kos
+COPY kos/addons /opt/toolchains/dc/kos/addons
+COPY kos/doc /opt/toolchains/dc/kos/doc
+COPY kos/include /opt/toolchains/dc/kos/include
+# COPY kos/examples /opt/toolchains/dc/kos/examples
+COPY kos/kernel /opt/toolchains/dc/kos/kernel
+COPY kos/lib /opt/toolchains/dc/kos/lib
+COPY kos/loadable /opt/toolchains/dc/kos/loadable
+COPY kos/utils /opt/toolchains/dc/kos/utils
+COPY kos/AUTHORS /opt/toolchains/dc/kos/AUTHORS
+COPY kos/environ_base.sh /opt/toolchains/dc/kos/environ_base.sh
+COPY kos/environ_dreamcast.sh /opt/toolchains/dc/kos/environ_dreamcast.sh
+COPY kos/Makefile /opt/toolchains/dc/kos/Makefile
+COPY kos/Makefile.prefab /opt/toolchains/dc/kos/Makefile.prefab
+COPY kos/Makefile.rules /opt/toolchains/dc/kos/Makefile.rules
+COPY kos/README.md /opt/toolchains/dc/kos/README.md
 
 # setup environ.sh file using default
 RUN cd /opt/toolchains/dc/kos \
@@ -84,8 +98,12 @@ CMD ["/bin/bash"]
 # build KOS
 RUN cd /opt/toolchains/dc/kos && make -j$(nproc)
 
+# COPY kos/examples /opt/toolchains/dc/kos/examples
 
 FROM kos as kos-ports
 COPY ports /opt/toolchains/dc/kos-ports
 RUN cd /opt/toolchains/dc/kos-ports \
 	&& sh utils/build-all.sh
+
+COPY kos/examples /opt/toolchains/dc/kos/examples
+
