@@ -104,6 +104,7 @@ var annotated_dup =
     [ "vector_t", "structvector__t.html", "structvector__t" ],
     [ "vfs_handler_t", "structvfs__handler__t.html", "structvfs__handler__t" ],
     [ "vid_mode_t", "structvid__mode__t.html", "structvid__mode__t" ],
+    [ "vmu_cond_t", "structvmu__cond__t.html", "structvmu__cond__t" ],
     [ "vmu_dir_t", "structvmu__dir__t.html", "structvmu__dir__t" ],
     [ "vmu_hdr_t", "structvmu__hdr__t.html", "structvmu__hdr__t" ],
     [ "vmu_pkg_t", "structvmu__pkg__t.html", "structvmu__pkg__t" ],

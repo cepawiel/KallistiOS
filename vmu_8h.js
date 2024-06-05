@@ -10,7 +10,6 @@ var vmu_8h =
     [ "VMU_SCREEN_HEIGHT", "group__maple__lcd.html#gae3a91979d8695249c6b62c87772083e7", null ],
     [ "VMU_SCREEN_WIDTH", "group__maple__lcd.html#ga397e320b539bdf2b7dc519fc87d8ca59", null ],
     [ "VMU_SLEEP", "group__vmu__buttons.html#gac44ba4ff65fb5ae445b41ad50cf94364", null ],
-    [ "vmu_cond_t", "group__vmu__buttons.html#ga638fe3aebbdcfc3b24427e43fba7baa3", null ],
     [ "vmu_beep_raw", "group__maple__clock.html#ga41b6abc823be47b254b16c2820fd405d", null ],
     [ "vmu_beep_waveform", "group__maple__clock.html#ga7486b2581d3e08d3c6b9afaf02772a33", null ],
     [ "vmu_block_read", "group__maple__memcard.html#gaa3d2fdda6e469704aa64807ca97f3e1e", null ],

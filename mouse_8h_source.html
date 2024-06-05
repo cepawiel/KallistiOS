@@ -123,7 +123,7 @@ $(document).ready(function(){initNavTree('mouse_8h_source.html',''); initResizab
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#include &lt;sys/cdefs.h&gt;</span></div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>__BEGIN_DECLS</div>
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#include &lt;<a class="code" href="types_8h.html">arch/types.h</a>&gt;</span></div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
 <div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="comment"></span> </div>
 <div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="comment">/** \defgroup   mouse   Mouse</span></div>
 <div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="comment">    \brief              Driver for the Dreamcast&#39;s Mouse Input Device</span></div>
@@ -150,14 +150,14 @@ $(document).ready(function(){initNavTree('mouse_8h_source.html',''); initResizab
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment"></span> </div>
 <div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment">/** \cond */</span></div>
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <a class="code hl_typedef" href="group__system__types.html#ga05f6b0ae8f6a6e135b0e290c25fe0e4e">uint16</a> buttons;</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <a class="code hl_typedef" href="group__system__types.html#ga05f6b0ae8f6a6e135b0e290c25fe0e4e">uint16</a> dummy1;</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <a class="code hl_typedef" href="group__system__types.html#ga4355d16fcf9f644c9ac84293f0b1801f">int16</a> dx;</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    <a class="code hl_typedef" href="group__system__types.html#ga4355d16fcf9f644c9ac84293f0b1801f">int16</a> dy;</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <a class="code hl_typedef" href="group__system__types.html#ga4355d16fcf9f644c9ac84293f0b1801f">int16</a> dz;</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    <a class="code hl_typedef" href="group__system__types.html#ga05f6b0ae8f6a6e135b0e290c25fe0e4e">uint16</a> dummy2;</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    <a class="code hl_typedef" href="group__system__types.html#ga4b435a49c74bb91f284f075e63416cb6">uint32</a> dummy3;</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <a class="code hl_typedef" href="group__system__types.html#ga4b435a49c74bb91f284f075e63416cb6">uint32</a> dummy4;</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    uint16_t    buttons;</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    uint16_t    dummy1;</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    int16_t     dx;</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    int16_t     dy;</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    int16_t     dz;</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    uint16_t    dummy2;</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    uint32_t    dummy3;</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    uint32_t    dummy4;</div>
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>} mouse_cond_t;<span class="comment"></span></div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment">/** \endcond */</span></div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
@@ -184,7 +184,7 @@ $(document).ready(function(){initNavTree('mouse_8h_source.html',''); initResizab
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="comment">    /** \brief  Buttons pressed bitmask.</span></div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="comment">        \see    mouse_buttons</span></div>
 <div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="comment">    */</span></div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno"><a class="line" href="structmouse__state__t.html#acb0e2faf2f553ab7863011ae334d5f4c">   85</a></span>    <a class="code hl_typedef" href="group__system__types.html#ga4b435a49c74bb91f284f075e63416cb6">uint32</a>  <a class="code hl_variable" href="structmouse__state__t.html#acb0e2faf2f553ab7863011ae334d5f4c">buttons</a>;</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno"><a class="line" href="structmouse__state__t.html#ab9aa1f299e0f5464d74b645da1da4af9">   85</a></span>    uint32_t  <a class="code hl_variable" href="structmouse__state__t.html#ab9aa1f299e0f5464d74b645da1da4af9">buttons</a>;</div>
 <div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment"></span> </div>
 <div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="comment">    /** \brief  X movement value */</span></div>
 <div class="line"><a id="l00088" name="l00088"></a><span class="lineno"><a class="line" href="structmouse__state__t.html#a7308948bf216cb1389c7670cd5e8a1c6">   88</a></span>    <span class="keywordtype">int</span> <a class="code hl_variable" href="structmouse__state__t.html#a7308948bf216cb1389c7670cd5e8a1c6">dx</a>;</div>
@@ -207,15 +207,11 @@ $(document).ready(function(){initNavTree('mouse_8h_source.html',''); initResizab
 <div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
 <div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="preprocessor">#endif  </span><span class="comment">/* __DC_MAPLE_MOUSE_H */</span><span class="preprocessor"></span></div>
 <div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span> </div>
-<div class="ttc" id="agroup__system__types_html_ga05f6b0ae8f6a6e135b0e290c25fe0e4e"><div class="ttname"><a href="group__system__types.html#ga05f6b0ae8f6a6e135b0e290c25fe0e4e">uint16</a></div><div class="ttdeci">unsigned short uint16</div><div class="ttdoc">16-bit unsigned integer</div><div class="ttdef"><b>Definition</b> types.h:34</div></div>
-<div class="ttc" id="agroup__system__types_html_ga4355d16fcf9f644c9ac84293f0b1801f"><div class="ttname"><a href="group__system__types.html#ga4355d16fcf9f644c9ac84293f0b1801f">int16</a></div><div class="ttdeci">short int16</div><div class="ttdoc">16-bit signed integer</div><div class="ttdef"><b>Definition</b> types.h:38</div></div>
-<div class="ttc" id="agroup__system__types_html_ga4b435a49c74bb91f284f075e63416cb6"><div class="ttname"><a href="group__system__types.html#ga4b435a49c74bb91f284f075e63416cb6">uint32</a></div><div class="ttdeci">unsigned long uint32</div><div class="ttdoc">32-bit unsigned integer</div><div class="ttdef"><b>Definition</b> types.h:33</div></div>
 <div class="ttc" id="astructmouse__state__t_html"><div class="ttname"><a href="structmouse__state__t.html">mouse_state_t</a></div><div class="ttdoc">Mouse status structure.</div><div class="ttdef"><b>Definition</b> mouse.h:81</div></div>
 <div class="ttc" id="astructmouse__state__t_html_a19442a94fb5988a2329c7ead76be39b2"><div class="ttname"><a href="structmouse__state__t.html#a19442a94fb5988a2329c7ead76be39b2">mouse_state_t::dz</a></div><div class="ttdeci">int dz</div><div class="ttdoc">Z movement value.</div><div class="ttdef"><b>Definition</b> mouse.h:94</div></div>
 <div class="ttc" id="astructmouse__state__t_html_a45fcace31714b8f7620e37d44137f2a3"><div class="ttname"><a href="structmouse__state__t.html#a45fcace31714b8f7620e37d44137f2a3">mouse_state_t::dy</a></div><div class="ttdeci">int dy</div><div class="ttdoc">Y movement value.</div><div class="ttdef"><b>Definition</b> mouse.h:91</div></div>
 <div class="ttc" id="astructmouse__state__t_html_a7308948bf216cb1389c7670cd5e8a1c6"><div class="ttname"><a href="structmouse__state__t.html#a7308948bf216cb1389c7670cd5e8a1c6">mouse_state_t::dx</a></div><div class="ttdeci">int dx</div><div class="ttdoc">X movement value.</div><div class="ttdef"><b>Definition</b> mouse.h:88</div></div>
-<div class="ttc" id="astructmouse__state__t_html_acb0e2faf2f553ab7863011ae334d5f4c"><div class="ttname"><a href="structmouse__state__t.html#acb0e2faf2f553ab7863011ae334d5f4c">mouse_state_t::buttons</a></div><div class="ttdeci">uint32 buttons</div><div class="ttdoc">Buttons pressed bitmask.</div><div class="ttdef"><b>Definition</b> mouse.h:85</div></div>
-<div class="ttc" id="atypes_8h_html"><div class="ttname"><a href="types_8h.html">types.h</a></div><div class="ttdoc">Common integer types.</div></div>
+<div class="ttc" id="astructmouse__state__t_html_ab9aa1f299e0f5464d74b645da1da4af9"><div class="ttname"><a href="structmouse__state__t.html#ab9aa1f299e0f5464d74b645da1da4af9">mouse_state_t::buttons</a></div><div class="ttdeci">uint32_t buttons</div><div class="ttdoc">Buttons pressed bitmask.</div><div class="ttdef"><b>Definition</b> mouse.h:85</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

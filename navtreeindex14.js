@@ -1,6 +1,5 @@
 var NAVTREEINDEX14 =
 {
-"matrix3d_8h.html":[8,4,2,1],
 "matrix_8h.html":[8,4,2,0],
 "mconst_8h.html":[8,5,4,3,8],
 "md5_8h.html":[10,0,0,0,2,2],
@@ -249,5 +248,6 @@ var NAVTREEINDEX14 =
 "structflashrom__ispcfg__t.html#a7c3afac6442c66a4818950a4bb9961c9":[8,3,3,9,25],
 "structflashrom__ispcfg__t.html#a85d82b068c3335ea5223cdaf98c1b5a1":[8,3,3,9,2],
 "structflashrom__ispcfg__t.html#a9700fd820262dc616befc1c2ea4ee4f8":[8,3,3,9,15],
-"structflashrom__ispcfg__t.html#a9d75fe37cca939cd91e7db131db3baef":[8,3,3,9,26]
+"structflashrom__ispcfg__t.html#a9d75fe37cca939cd91e7db131db3baef":[8,3,3,9,26],
+"structflashrom__ispcfg__t.html#a9f1af3f60a90670b4627d0364dbb6527":[8,3,3,9,6]
 };

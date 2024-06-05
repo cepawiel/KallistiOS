@@ -1,5 +1,9 @@
 var group__vmu__buttons =
 [
+    [ "vmu_cond_t", "structvmu__cond__t.html", [
+      [ "dummy", "structvmu__cond__t.html#a8ada4f6e4eefb37b65da83a2dc4a91d7", null ],
+      [ "raw_buttons", "structvmu__cond__t.html#a9d4068361d37c7f9cc167c90b534f98c", null ]
+    ] ],
     [ "vmu_state_t", "unionvmu__state__t.html", [
       [ "a", "unionvmu__state__t.html#a7950381c9d9cc6b5900eb9ed5432e6b5", null ],
       [ "b", "unionvmu__state__t.html#af8fadeea93251c1cdead1d66f7626a45", null ],
@@ -18,6 +22,5 @@ var group__vmu__buttons =
     [ "VMU_DPAD_RIGHT", "group__vmu__buttons.html#gac1fe0090f6887ff04b1df2ef2e68ddc8", null ],
     [ "VMU_DPAD_UP", "group__vmu__buttons.html#ga40426b7c731cb3742924211e3b2b1718", null ],
     [ "VMU_MODE", "group__vmu__buttons.html#ga4443d9013efe3e41f3f5e3a6d0e74f3c", null ],
-    [ "VMU_SLEEP", "group__vmu__buttons.html#gac44ba4ff65fb5ae445b41ad50cf94364", null ],
-    [ "vmu_cond_t", "group__vmu__buttons.html#ga638fe3aebbdcfc3b24427e43fba7baa3", null ]
+    [ "VMU_SLEEP", "group__vmu__buttons.html#gac44ba4ff65fb5ae445b41ad50cf94364", null ]
 ];

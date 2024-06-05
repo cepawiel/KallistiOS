@@ -93,8 +93,7 @@ $(document).ready(function(){initNavTree('group__vmu__buttons.html',''); initRes
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
-<a href="#define-members">Macros</a> &#124;
-<a href="#typedef-members">Typedefs</a>  </div>
+<a href="#define-members">Macros</a>  </div>
   <div class="headertitle"><div class="title">VMU Buttons<div class="ingroups"><a class="el" href="group__peripherals.html">Peripherals</a> &raquo; <a class="el" href="group__vmu.html">Visual Memory Unit</a> &raquo; <a class="el" href="group__maple__clock.html">Clock Function</a></div></div></div>
 </div><!--header-->
 <div class="contents">
@@ -104,6 +103,9 @@ $(document).ready(function(){initNavTree('group__vmu__buttons.html',''); initRes
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structvmu__cond__t.html">vmu_cond_t</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">VMU's raw condition data: 0 = PRESSED, 1 = RELEASED.  <a href="structvmu__cond__t.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">union &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="unionvmu__state__t.html">vmu_state_t</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">VMU's "civilized" state data: 0 = RELEASED, 1 = PRESSED.  <a href="unionvmu__state__t.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -134,12 +136,6 @@ Macros</h2></td></tr>
 <tr class="memitem:gac44ba4ff65fb5ae445b41ad50cf94364" id="r_gac44ba4ff65fb5ae445b41ad50cf94364"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__vmu__buttons.html#gac44ba4ff65fb5ae445b41ad50cf94364">VMU_SLEEP</a>&#160;&#160;&#160;(7&lt;&lt;1)</td></tr>
 <tr class="memdesc:gac44ba4ff65fb5ae445b41ad50cf94364"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sleep button on the VMU.  <br /></td></tr>
 <tr class="separator:gac44ba4ff65fb5ae445b41ad50cf94364"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
-Typedefs</h2></td></tr>
-<tr class="memitem:ga638fe3aebbdcfc3b24427e43fba7baa3" id="r_ga638fe3aebbdcfc3b24427e43fba7baa3"><td class="memItemLeft" align="right" valign="top">typedef uint8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__vmu__buttons.html#ga638fe3aebbdcfc3b24427e43fba7baa3">vmu_cond_t</a></td></tr>
-<tr class="memdesc:ga638fe3aebbdcfc3b24427e43fba7baa3"><td class="mdescLeft">&#160;</td><td class="mdescRight">VMU's raw condition data: 0 = PRESSED, 1 = RELEASED.  <br /></td></tr>
-<tr class="separator:ga638fe3aebbdcfc3b24427e43fba7baa3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>VMU button masks. </p>
@@ -271,23 +267,6 @@ Typedefs</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Sleep button on the VMU. </p>
-
-</div>
-</div>
-<h2 class="groupheader">Typedef Documentation</h2>
-<a id="ga638fe3aebbdcfc3b24427e43fba7baa3" name="ga638fe3aebbdcfc3b24427e43fba7baa3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga638fe3aebbdcfc3b24427e43fba7baa3">&#9670;&#160;</a></span>vmu_cond_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">typedef uint8_t <a class="el" href="group__vmu__buttons.html#ga638fe3aebbdcfc3b24427e43fba7baa3">vmu_cond_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>VMU's raw condition data: 0 = PRESSED, 1 = RELEASED. </p>
 
 </div>
 </div>
