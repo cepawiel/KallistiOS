@@ -18,6 +18,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <errno.h>
+#include <inttypes.h>
 #include "get_image.h"
 #include "vq_internal.h"
 #include "vq_types.h"
@@ -265,7 +266,7 @@ static uint16 pack(fcolor_t *c) {
         return PACK565(r, g, b);
 }
 
-static int INLINE le16(int x) {
+static int inline le16(int x) {
     /* Endian test added by Megan. This is probably not too efficient
        but it's portable and will get the job done. */
     unsigned long test = 0x12345678;
@@ -572,7 +573,7 @@ static fquad_t *create_downscaled_map(int res, fquad_t *oneup) {
     fquad_t *q, *larger, tmp;
 
     if(use_debug) {
-        printf("create_downscaled_map(%d %lx)\n", res, (uintptr_t)oneup);
+        printf("create_downscaled_map(%d %" PRIxPTR ")\n", res, (uintptr_t)oneup);
     }
 
     /* each quad in the lower resolution is an average of

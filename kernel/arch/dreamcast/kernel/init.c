@@ -10,63 +10,54 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <kos/banner.h>
 #include <kos/dbgio.h>
+#include <kos/dbglog.h>
 #include <kos/init.h>
+#include <kos/irq.h>
+#include <kos/linker.h>
+#include <kos/mm.h>
 #include <kos/platform.h>
+#include <kos/timer.h>
 #include <arch/arch.h>
-#include <arch/irq.h>
-#include <arch/memory.h>
+#include <arch/gdb.h>
 #include <arch/rtc.h>
-#include <arch/timer.h>
-#include <arch/wdt.h>
+#include <dc/cache.h>
+#include <dc/memory.h>
 #include <dc/perfctr.h>
 #include <dc/ubc.h>
 #include <dc/pvr.h>
 #include <dc/vmufs.h>
 #include <dc/syscalls.h>
+#include <dc/wdt.h>
+#include <dc/dcload.h>
 
 #include "initall_hdrs.h"
 
-extern int _bss_start, end;
-
 /* ctor/dtor stuff from libgcc. */
-#if __GNUC__ == 4
-#define _init init
-#define _fini fini
-#endif
-
 extern void _init(void);
 extern void _fini(void);
-extern void __verify_newlib_patch();
+extern void __verify_newlib_patch(void);
+extern void dma_init(void);
+
+/* Jump back to the bootloader. From startup.S */
+void arch_real_exit(int ret_code) __noreturn;
 
 void (*__kos_init_early_fn)(void) __attribute__((weak,section(".data"))) = NULL;
 
 int main(int argc, char **argv);
-uint32 _fs_dclsocket_get_ip(void);
-
-#define SAR2    ((vuint32 *)0xFFA00020)
-#define CHCR2   ((vuint32 *)0xFFA0002C)
-#define DMAOR   ((vuint32 *)0xFFA00040)
-
-/* We have to put this here so we can include plat-specific devices */
-dbgio_handler_t * dbgio_handlers[] = {
-    &dbgio_dcload,
-    &dbgio_dcls,
-    &dbgio_scif,
-    &dbgio_null,
-    &dbgio_fb
-};
-int dbgio_handler_cnt = sizeof(dbgio_handlers) / sizeof(dbgio_handler_t *);
 
 void arch_init_net_dcload_ip(void) {
     union {
-        uint32 ipl;
-        uint8 ipb[4];
+        uint32_t ipl;
+        uint8_t ipb[4];
     } ip = { 0 };
 
     if(dcload_type == DCLOAD_TYPE_IP) {
+        uint32_t tool_ip, tool_port;
+
         /* Grab the IP address from dcload before we disable dbgio... */
-        ip.ipl = _fs_dclsocket_get_ip();
+        ip.ipl = dcload_gethostinfo(&tool_ip, &tool_port);
         dbglog(DBG_INFO, "dc-load says our IP is %d.%d.%d.%d\n", ip.ipb[3],
                ip.ipb[2], ip.ipb[1], ip.ipb[0]);
         dbgio_disable();
@@ -75,12 +66,9 @@ void arch_init_net_dcload_ip(void) {
     net_init(ip.ipl);     /* Enable networking (and drivers) */
 
     if(dcload_type == DCLOAD_TYPE_IP) {
-        fs_dclsocket_init_console();
-
-        if(!fs_dclsocket_init()) {
-            dbgio_dev_select("fs_dclsocket");
+        if(!dcload_syscall_net_init()) {
             dbgio_enable();
-            dbglog(DBG_INFO, "fs_dclsocket console support enabled\n");
+            dbglog(DBG_INFO, "dcload_syscalls_net backend enabled\n");
         }
     }
 }
@@ -109,7 +97,7 @@ void vmu_fs_shutdown(void) {
 
 /* Mount the built-in romdisk to /rd. */
 void fs_romdisk_mount_builtin(void) {
-    fs_romdisk_mount("/rd", __kos_romdisk, 0);
+    fs_romdisk_mount("/rd", __kos_romdisk, false);
 }
 
 void fs_romdisk_mount_builtin_legacy(void) {
@@ -129,7 +117,7 @@ KOS_INIT_FLAG_WEAK(fs_iso9660_init, true);
 KOS_INIT_FLAG_WEAK(fs_iso9660_shutdown, true);
 
 void dcload_init(void) {
-    if (*DCLOADMAGICADDR == DCLOADMAGICVALUE) {
+    if (syscall_dcload_detected()) {
         dbglog(DBG_INFO, "dc-load console support enabled\n");
         fs_dcload_init();
     }
@@ -138,12 +126,25 @@ void dcload_init(void) {
 KOS_INIT_FLAG_WEAK(dcload_init, true);
 KOS_INIT_FLAG_WEAK(fs_dcload_init_console, true);
 KOS_INIT_FLAG_WEAK(fs_dcload_shutdown, true);
-KOS_INIT_FLAG_WEAK(fs_dclsocket_shutdown, true);
+KOS_INIT_FLAG_WEAK(fs_init, true);
+KOS_INIT_FLAG_WEAK(fs_dev_init, true);
+KOS_INIT_FLAG_WEAK(fs_dev_shutdown, true);
+KOS_INIT_FLAG_WEAK(fs_shutdown, true);
+KOS_INIT_FLAG_WEAK(fs_null_init, true);
+KOS_INIT_FLAG_WEAK(fs_null_shutdown, true);
+KOS_INIT_FLAG_WEAK(fs_pty_init, true);
+KOS_INIT_FLAG_WEAK(fs_pty_shutdown, true);
+KOS_INIT_FLAG_WEAK(fs_ramdisk_init, true);
+KOS_INIT_FLAG_WEAK(fs_ramdisk_shutdown, true);
+KOS_INIT_FLAG_WEAK(fs_rnd_init, true);
+KOS_INIT_FLAG_WEAK(fs_rnd_shutdown, true);
+KOS_INIT_FLAG_WEAK(library_init, true);
+KOS_INIT_FLAG_WEAK(library_shutdown, true);
 
 /* Auto-init stuff: override with a non-weak symbol if you don't want all of
    this to be linked into your code (and do the same with the
    arch_auto_shutdown function too). */
-int  __weak arch_auto_init(void) {
+int  __weak_symbol arch_auto_init(void) {
     /* Initialize memory management */
     mm_init();
 
@@ -160,6 +161,12 @@ int  __weak arch_auto_init(void) {
     /* Init SCIF for debug stuff (maybe) */
     scif_init();
 
+    /* Add dbgio handlers for our arch, from last to first in precedence */
+    dbgio_add_handler(&dbgio_fb);
+    dbgio_add_handler(&dbgio_null);
+    dbgio_add_handler(&dbgio_scif);
+    dbgio_add_handler(&dbgio_dcload);
+
     /* Init debug IO */
     dbgio_init();
 
@@ -175,29 +182,24 @@ int  __weak arch_auto_init(void) {
     timer_init();           /* Timers */
     hardware_sys_init();        /* DC low-level hardware init */
 
+    if (!KOS_PLATFORM_IS_NAOMI)
+        syscall_sysinfo_init();
+
     /* Initialize our timer */
     perf_cntr_timer_enable();
-    timer_ms_enable();
     rtc_init();
 
     thd_init();
 
     nmmgr_init();
 
-    fs_init();          /* VFS */
-    fs_dev_init();
-    fs_null_init();
-    fs_pty_init();          /* Pty */
-    fs_ramdisk_init();      /* Ramdisk */
-    KOS_INIT_FLAG_CALL(fs_romdisk_init);    /* Romdisk */
-
-/* The arc4random_buf() function used for random & urandom is only
-   available in newlib starting with version 2.4.0 */
-#if defined(__NEWLIB__) && !(__NEWLIB__ < 2 && __NEWLIB_MINOR__ < 4)
-    fs_rnd_init();          /* /dev/urandom etc. */
-#else
-#warning "/dev filesystem is not supported with Newlib < 2.4.0"
-#endif
+    KOS_INIT_FLAG_CALL(fs_init);          /* VFS */
+    KOS_INIT_FLAG_CALL(fs_dev_init);      /* /dev */
+    KOS_INIT_FLAG_CALL(fs_null_init);     /* /dev/null */
+    KOS_INIT_FLAG_CALL(fs_pty_init);      /* Pty */
+    KOS_INIT_FLAG_CALL(fs_ramdisk_init);  /* Ramdisk */
+    KOS_INIT_FLAG_CALL(fs_romdisk_init);  /* Romdisk */
+    KOS_INIT_FLAG_CALL(fs_rnd_init);      /* /dev/urandom etc. */
 
     hardware_periph_init();     /* DC peripheral init */
 
@@ -212,7 +214,7 @@ int  __weak arch_auto_init(void) {
     KOS_INIT_FLAG_CALL(vmu_fs_init);
 
     /* Initialize library handling */
-    library_init();
+    KOS_INIT_FLAG_CALL(library_init);
 
     /* Now comes the optional stuff */
     if(__kos_init_flags & INIT_IRQ) {
@@ -226,47 +228,60 @@ int  __weak arch_auto_init(void) {
     return 0;
 }
 
-void  __weak arch_auto_shutdown(void) {
-    KOS_INIT_FLAG_CALL(fs_dclsocket_shutdown);
+void  __weak_symbol arch_auto_shutdown(void) {
+    /* Restore the native transport before it is torn down below. */
+    dcload_syscall_net_shutdown();
+
     if (!KOS_PLATFORM_IS_NAOMI)
         KOS_INIT_FLAG_CALL(net_shutdown);
 
-    irq_disable();
     snd_shutdown();
-    timer_shutdown();
     hardware_shutdown();
+    /* XXX: We should investigate shrinking this irq_disabled
+       time. Until then, all these shut downs happen with
+       irqs disabled which prevents things like safely joining
+       threads or sending cleanup commands to hardware.
+    */
+    irq_disable();
+    timer_shutdown();
     pvr_shutdown();
-    library_shutdown();
+
+    KOS_INIT_FLAG_CALL(library_shutdown);
+
     KOS_INIT_FLAG_CALL(fs_dcload_shutdown);
     KOS_INIT_FLAG_CALL(vmu_fs_shutdown);
     if (!KOS_PLATFORM_IS_NAOMI)
         KOS_INIT_FLAG_CALL(fs_iso9660_shutdown);
-#if defined(__NEWLIB__) && !(__NEWLIB__ < 2 && __NEWLIB_MINOR__ < 4)
-    fs_rnd_shutdown();
-#endif
-    fs_ramdisk_shutdown();
+
+    KOS_INIT_FLAG_CALL(fs_rnd_shutdown);
+
+    KOS_INIT_FLAG_CALL(fs_ramdisk_shutdown);
     KOS_INIT_FLAG_CALL(fs_romdisk_shutdown);
-    fs_pty_shutdown();
-    fs_null_shutdown();
-    fs_dev_shutdown();
-    fs_shutdown();
+    KOS_INIT_FLAG_CALL(fs_null_shutdown);
+    KOS_INIT_FLAG_CALL(fs_dev_shutdown);
+
+    /* As a workaround, shut down the base FS before fs_pty
+       to avoid triggering bugs. */
+    KOS_INIT_FLAG_CALL(fs_shutdown);
+
+    KOS_INIT_FLAG_CALL(fs_pty_shutdown);
+
     thd_shutdown();
     rtc_shutdown();
 }
 
+/* The libgprof addon provides the strong version that starts gprof profiling.
+   Called before constructors so it always profiles them. */
+void __weak_symbol gprof_init(void);
+
 /* This is the entry point inside the C program */
 void arch_main(void) {
-    uint8 *bss_start = (uint8 *)(&_bss_start);
-    uint8 *bss_end = (uint8 *)(&end);
     int rv;
 
-    if (KOS_PLATFORM_IS_NAOMI) {
-        /* Ugh. I'm really not sure why we have to set up these DMA registers this
-           way on boot, but failing to do so breaks maple... */
-        *SAR2 = 0;
-        *CHCR2 = 0x1201;
-        *DMAOR = 0x8201;
-    }
+    /* Enable caches */
+    cache_write_ccr((uint32_t)~0, CCR_DEFAULT);
+
+    dma_init();
 
     /* Ensure the WDT is not enabled from a previous session */
     wdt_disable();
@@ -279,7 +294,7 @@ void arch_main(void) {
         __kos_init_early_fn();
 
     /* Clear out the BSS area */
-    memset(bss_start, 0, bss_end - bss_start);
+    memset(_bss_start, 0, (uintptr_t)end - (uintptr_t)_bss_start);
 
     /* Do auto-init stuff */
     arch_auto_init();
@@ -288,11 +303,15 @@ void arch_main(void) {
 
     dbglog(DBG_INFO, "\n");
 
+    /* Start gprof profiling, if libgprof is linked in */
+    if(gprof_init)
+        gprof_init();
+
     /* Run ctors */
     _init();
 
     /* Call the user's main function */
-    rv = main(0, NULL);
+    rv = main(0, (char *[]){ NULL });
 
     /* Call kernel exit */
     exit(rv);
@@ -386,6 +405,7 @@ void arch_menu(void) {
 
 /* Called to shut down non-gracefully; assume the system is in peril
    and don't try to call the dtors */
+__used __noreturn
 void arch_abort(void) {
     /* Disable the WDT, if active */
     wdt_disable();
@@ -414,7 +434,7 @@ void arch_abort(void) {
 /* Called to reboot the system; assume the system is in peril and don't
    try to call the dtors */
 void arch_reboot(void) {
-    typedef void (*reboot_func)() __noreturn;
+    typedef void (*reboot_func)(void) __noreturn;
     reboot_func rb;
 
     dbglog(DBG_CRITICAL, "arch: rebooting the system\n");

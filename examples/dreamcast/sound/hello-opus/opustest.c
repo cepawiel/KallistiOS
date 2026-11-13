@@ -15,8 +15,14 @@
 #include <dc/sound/stream.h>
 
 #include <kos/init.h>
+#include <kos/thread.h>
 
+/* Allow both old kos-ports location and standard */
+#if __has_include("opusplay/opusplay.h")
 #include <opusplay/opusplay.h>
+#else
+#include <opus/opusplay.h>
+#endif
 
 int main(int argc, char **argv) {
     maple_device_t *cont;

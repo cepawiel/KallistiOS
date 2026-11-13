@@ -3,6 +3,7 @@
    g2bus.h
    Copyright (C) 2002 Megan Potter
    Copyright (C) 2023 Andy Barajas
+   Copyright (C) 2024 Ruslan Rostovtsev
 
 */
 
@@ -31,12 +32,11 @@
 #ifndef __DC_G2BUS_H
 #define __DC_G2BUS_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
 #include <stdint.h>
-#include <arch/irq.h>
-#include <arch/types.h>
+#include <kos/irq.h>
 
 #include <dc/fifo.h>
 
@@ -48,18 +48,18 @@ __BEGIN_DECLS
 */
 
 /** \name       List of G2 Bus channels
- 
-    AICA (SPU) is channel 0, BBA uses channel 1. CH2_DMA_G2CHN and 
+
+    AICA (SPU) is channel 0, BBA uses channel 1. CH2_DMA_G2CHN and
     CH3_DMA_G2CHN are not currently tied to any specific device.
 
-    \note 
-      A change in the implementation has rendered *_DMA_MODE and *_DMA_SHCHN 
+    \note
+      A change in the implementation has rendered *_DMA_MODE and *_DMA_SHCHN
       obsolete.
 
-      In the current implementation, *_DMA_MODE should always be set to zero 
+      In the current implementation, *_DMA_MODE should always be set to zero
       (representing CPU_TRIGGER). There is also no involvement of SH4-DMA with
       G2-DMA; therefore, the *_DMA_SHCHN values have been deprecated.
-      
+
     @{
 */
 #define G2_DMA_CHAN_SPU  0 /**< \brief AICA: G2 channel 0 */
@@ -89,8 +89,8 @@ typedef void (*g2_dma_callback_t)(void *data);
 
 /** \brief  Perform a DMA transfer between SH-4 RAM and G2 Bus
 
-    This function copies a block of data between SH-4 RAM and G2 Bus via DMA. 
-    You specify the direction of the copy (SH4TOG2BUS/G2BUSTOSH4). There are all 
+    This function copies a block of data between SH-4 RAM and G2 Bus via DMA.
+    You specify the direction of the copy (SH4TOG2BUS/G2BUSTOSH4). There are all
     kinds of constraints that must be fulfilled to actually do this, so
     make sure to read all the fine print with the parameter list.
 
@@ -139,22 +139,22 @@ void g2_dma_shutdown(void);
     A G2 context containing the states of IRQs and G2 DMA. This struct
     is used in with g2_lock() and g2_unlock().
 */
-typedef struct { 
-    int irq_state;    /** \brief IRQ state when entering a G2 critical block */
+typedef struct {
+    irq_mask_t irq_state;    /** \brief IRQ state when entering a G2 critical block */
 } g2_ctx_t;
 
 /* Internal constants to access suspend registers for G2 DMA. They are not meant for
    user-code use. */
-/** \cond */ 
-#define G2_DMA_SUSPEND_SPU     (*((vuint32 *)0xa05f781C))
-#define G2_DMA_SUSPEND_BBA     (*((vuint32 *)0xa05f783C))
-#define G2_DMA_SUSPEND_CH2     (*((vuint32 *)0xa05f785C))
+/** \cond */
+#define G2_DMA_SUSPEND_SPU     (*((volatile uint32_t *)0xa05f781C))
+#define G2_DMA_SUSPEND_BBA     (*((volatile uint32_t *)0xa05f783C))
+#define G2_DMA_SUSPEND_CH2     (*((volatile uint32_t *)0xa05f785C))
 /** \endcond */
 
 /** \brief  Disable IRQs and G2 DMA
 
-    This function makes the following g2_read_*()/g2_write_*() functions atomic 
-    by disabling IRQs and G2 DMA and storing their states. Pass the context 
+    This function makes the following g2_read_*()/g2_write_*() functions atomic
+    by disabling IRQs and G2 DMA and storing their states. Pass the context
     created by this function to g2_unlock() to re-enable IRQs and G2 DMA.
 
     \return                 The context containing the IRQ and G2 DMA states.
@@ -190,6 +190,25 @@ static inline void g2_unlock(g2_ctx_t ctx) {
     irq_restore(ctx.irq_state);
 }
 
+/** \cond */
+static inline void __g2_scoped_cleanup(g2_ctx_t *state) {
+    g2_unlock(*state);
+}
+
+#define ___g2_lock_scoped(l) \
+    g2_ctx_t __scoped_g2_lock_##l __attribute__((cleanup(__g2_scoped_cleanup))) = g2_lock()
+
+#define __g2_lock_scoped(l) ___g2_lock_scoped(l)
+/** \endcond */
+
+/** \brief  Disable IRQs and G2 DMA with scope management
+
+    This function makes the following g2_read_*()/g2_write_*() functions atomic
+    by disabling IRQs and G2 DMA and storing their states. The state will
+    automatically be restored once the execution exits the functional block in
+    which the macro was called.
+*/
+#define g2_lock_scoped() __g2_lock_scoped(__LINE__)
 
 #undef G2_DMA_SUSPEND_SPU
 #undef G2_DMA_SUSPEND_BBA
@@ -223,7 +242,7 @@ void g2_write_8(uintptr_t address, uint8_t value);
     \param  address         The address in memory to read.
     \return                 The word read from the address specified.
 */
-uint16 g2_read_16(uintptr_t address);
+uint16_t g2_read_16(uintptr_t address);
 
 /** \brief  Write a 16-bit word to G2.
 
@@ -245,6 +264,18 @@ void g2_write_16(uintptr_t address, uint16_t value);
 */
 uint32_t g2_read_32(uintptr_t address);
 
+/** \brief  Non-blocked read one 32-bit dword from G2.
+
+    This function reads a single dword from the specified address, without all
+    necessary precautions that are required for accessing G2.
+
+    \param  address         The address in memory to read.
+    \return                 The dword read from the address specified.
+*/
+static inline uint32_t g2_read_32_raw(uintptr_t address) {
+    return *((volatile uint32_t *)address);
+}
+
 /** \brief  Write a 32-bit dword to G2.
 
     This function writes one dword to the specified address, taking all the
@@ -254,6 +285,18 @@ uint32_t g2_read_32(uintptr_t address);
     \param  value           The value to write to that address.
 */
 void g2_write_32(uintptr_t address, uint32_t value);
+
+/** \brief  Non-blocked write a 32-bit dword to G2.
+
+    This function writes one dword to the specified address, without all the
+    necessary precautions to ensure your write actually succeeds.
+
+    \param  address         The address in memory to write to.
+    \param  value           The value to write to that address.
+*/
+static inline void g2_write_32_raw(uintptr_t address, uint32_t value) {
+    *((volatile uint32_t *)address) = value;
+}
 
 /** \brief  Read a block of bytes from G2.
 

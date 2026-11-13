@@ -29,6 +29,8 @@
 #include <kos/init_base.h>
 __BEGIN_DECLS
 
+#include <stdint.h>
+
 /** \brief   Dreamcast-specific KOS_INIT Exports
     \ingroup init_flags
 
@@ -71,6 +73,9 @@ __BEGIN_DECLS
     KOS_INIT_FLAG(flags, INIT_SIP, sip_shutdown); \
     KOS_INIT_FLAG(flags, INIT_DREAMEYE, dreameye_init); \
     KOS_INIT_FLAG(flags, INIT_DREAMEYE, dreameye_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_MIE, mie_init); \
+    KOS_INIT_FLAG(flags, INIT_MIE, mie_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_MIE, mie_init_scan); \
     KOS_INIT_FLAG(flags, INIT_MAPLE_ALL, maple_wait_scan); \
     KOS_INIT_FLAG(flags, INIT_MAPLE_ALL, maple_init); \
     KOS_INIT_FLAG(flags, INIT_MAPLE_ALL, maple_shutdown)
@@ -90,19 +95,30 @@ __BEGIN_DECLS
 /** \brief Default init flags for the Dreamcast. */
 #define INIT_DEFAULT_ARCH   (INIT_MAPLE_ALL | INIT_CDROM)
 
-#define INIT_CONTROLLER     0x00001000  /**< \brief Enable Controller maple driver */
-#define INIT_KEYBOARD       0x00002000  /**< \brief Enable Keyboard maple driver */
-#define INIT_MOUSE          0x00004000  /**< \brief Enable Mouse maple driver */
-#define INIT_LIGHTGUN       0x00008000  /**< \brief Enable Lightgun maple driver */
-#define INIT_VMU            0x00010000  /**< \brief Enable VMU maple driver */
-#define INIT_PURUPURU       0x00020000  /**< \brief Enable Puru Puru maple driver */
-#define INIT_SIP            0x00040000  /**< \brief Enable Sound input maple driver */
-#define INIT_DREAMEYE       0x00080000  /**< \brief Enable DreamEye maple driver */
-#define INIT_MAPLE_ALL      0x000ff000  /**< \brief Enable all Maple drivers */
+/** \brief Enable all Maple peripheral drivers. */
+#if defined(_arch_sub_naomi)
+#define INIT_MAPLE_ALL      (INIT_MAPLE_PERIPH | INIT_MIE)
+#else
+#define INIT_MAPLE_ALL      INIT_MAPLE_PERIPH
+#endif
 
-#define INIT_CDROM          0x00100000  /**< \brief Enable CD-ROM support */
+#define INIT_MAPLE_PERIPH   (INIT_CONTROLLER | INIT_KEYBOARD | INIT_MOUSE    | \
+                             INIT_LIGHTGUN   | INIT_VMU      | INIT_PURUPURU | \
+                             INIT_SIP        | INIT_DREAMEYE)
 
-#define INIT_OCRAM          0x10000000  /**< \brief Use half of the dcache as RAM */
+#define INIT_CONTROLLER     0x00004000  /**< \brief Enable Controller maple driver */
+#define INIT_KEYBOARD       0x00008000  /**< \brief Enable Keyboard maple driver */
+#define INIT_MOUSE          0x00010000  /**< \brief Enable Mouse maple driver */
+#define INIT_LIGHTGUN       0x00020000  /**< \brief Enable Lightgun maple driver */
+#define INIT_VMU            0x00040000  /**< \brief Enable VMU maple driver */
+#define INIT_PURUPURU       0x00080000  /**< \brief Enable Puru Puru maple driver */
+#define INIT_SIP            0x00100000  /**< \brief Enable Sound input maple driver */
+#define INIT_DREAMEYE       0x00200000  /**< \brief Enable DreamEye maple driver */
+#define INIT_MIE            0x00400000  /**< \brief Enable MIE/JVS maple driver */
+
+#define INIT_CDROM          0x01000000  /**< \brief Enable CD-ROM support */
+
+static const uint32_t INIT_OCRAM __depr("INIT_OCRAM has been removed. Use dcache_toggle_ocram().") = 0;
 #define INIT_NO_DCLOAD      0x20000000  /**< \brief Disable dcload */
 
 /** @} */

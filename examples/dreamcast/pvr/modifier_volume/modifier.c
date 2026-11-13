@@ -27,7 +27,7 @@ void setup(void) {
     pvr_poly_cxt_t cxt;
     int i;
     float x, y, z;
-    uint32 argb = list == PVR_LIST_OP_POLY ? 0xFF0000FF : 0x80FF00FF;
+    uint32_t argb = list == PVR_LIST_OP_POLY ? 0xFF0000FF : 0x80FF00FF;
 
     pvr_poly_cxt_col_mod(&cxt, list);
     pvr_poly_mod_compile(&phdr, &cxt);
@@ -121,7 +121,6 @@ void do_frame(void) {
     pvr_modifier_vol_t mod;
     int i;
 
-    pvr_wait_ready();
     pvr_scene_begin();
     pvr_list_begin(list);
 
@@ -179,7 +178,7 @@ static pvr_init_params_t pvr_params = {
         PVR_BINSIZE_16, PVR_BINSIZE_16, PVR_BINSIZE_16, PVR_BINSIZE_16,
         PVR_BINSIZE_0
     },
-    512 * 1024
+    512 * 1024, 0, 0, 0, 0, 0
 };
 
 int main(int argc, char *argv[]) {

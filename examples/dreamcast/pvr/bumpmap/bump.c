@@ -185,7 +185,6 @@ static void do_frame(void) {
     shdr[0].oargb = pvr_pack_bump(bumpiness, F_PI / 4.0f, 5.0f * F_PI / 6.0f);
     shdr[0].argb = 0;
 
-    pvr_wait_ready();
     pvr_scene_begin();
 
     pvr_list_begin(PVR_LIST_OP_POLY);
@@ -207,7 +206,7 @@ static pvr_init_params_t pvr_params = {
         PVR_BINSIZE_16, PVR_BINSIZE_0, PVR_BINSIZE_0, PVR_BINSIZE_0,
         PVR_BINSIZE_16
     },
-    512 * 1024
+    512 * 1024, 0, 0, 0, 0, 0
 };
 
 int main(int argc, char *argv[]) {

@@ -160,7 +160,7 @@ int argc;
 char **argv;
 {
     /* If the user hits start, bail */
-    cont_btn_callback(0, CONT_START, (cont_btn_callback_t)arch_exit);
+    cont_btn_callback(0, CONT_START, (cont_btn_callback_t)exit);
 
     pvr_init_defaults();
     conio_init(CONIO_TTY_PVR, CONIO_INPUT_LINE);
@@ -652,7 +652,7 @@ cave_init() {
      * make it easier on the intrepid adventurer.
      */
     for(i = 1; i <= room_num; ++i)
-        qsort(cave[i].tunnel, (u_int)link_num,
+        qsort(cave[i].tunnel, link_num,
               sizeof(cave[i].tunnel[0]), int_compare);
 
 #ifdef DEBUG

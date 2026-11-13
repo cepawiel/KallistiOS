@@ -27,12 +27,20 @@
 */
 
 #include <kos.h>
+
+/* Allow both old kos-ports location and standard */
+#if __has_include("mruby/mruby.h")
 #include <mruby/mruby.h>
-#include <mruby/mruby/internal.h>
-#include <mruby/mruby/data.h>
-#include <mruby/mruby/string.h>
-#include <mruby/mruby/error.h>
 #include <mruby/mruby/array.h>
+#include <mruby/mruby/internal.h>
+#include <mruby/mruby/string.h>
+#else
+#include <mruby.h>
+#include <mruby/array.h>
+#include <mruby/internal.h>
+#include <mruby/string.h>
+#endif
+
 #include <stdio.h>
 #include <inttypes.h>
 
@@ -46,13 +54,14 @@ struct InputBuf {
 } input_buf;
 
 // Globals for cntroller input
-//static uint32 *btn_buffer;
-//static uint32 *buf_index;
+//static uint32_t *btn_buffer;
+//static uint32_t *buf_index;
 
 static mrb_value btn_mrb_buffer;
 
 // buf has to be BUFSIZE elements at least
-void *read_buttons() {
+void *read_buttons(void *unused) {
+  (void)unused;
   while(1) {
     input_buf.index = (input_buf.index + 1) % BUFSIZE;
     //printf("index: %" PRIu32 "\n", buf_index);
@@ -308,9 +317,7 @@ static mrb_value clear_score(mrb_state *mrb, mrb_value self) {
 static mrb_value render_score(mrb_state *mrb, mrb_value self) {
   struct mrb_value score;
   mrb_get_args(mrb, "i", &score);
-  char buf[20];
-  snprintf(buf, 20, "Score: %8" PRId32, mrb_fixnum(score));
-  bfont_draw_str(vram_s + 640 * 100 + 16, 640, 1, buf);
+  bfont_draw_str_fmt(vram_s + 640 * 100 + 16, 640, 1, "Score: %8" PRId32, mrb_fixnum(score));
 
   return mrb_nil_value();
 }

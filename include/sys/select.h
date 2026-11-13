@@ -26,13 +26,8 @@
 __BEGIN_DECLS
 
 #include <newlib.h>
-
-#if __NEWLIB__ > 2 || (__NEWLIB__ == 2 && __NEWLIB_MINOR__ > 2)
+#include <kos/opts.h>
 #include <sys/_timeval.h>
-#else
-#include <time.h>
-#include <sys/time.h>
-#endif
 
 /* Newlib used to define fd_set and friends in <sys/types.h>, but at some point
    that stopped being the case... This should tell us whether we need to define
@@ -40,11 +35,6 @@ __BEGIN_DECLS
 #ifndef _SYS_TYPES_FD_SET
 
 #define _SYS_TYPES_FD_SET
-
-#ifndef FD_SETSIZE
-/* This matches fs.h. */
-#define FD_SETSIZE 1024
-#endif
 
 #define NFDBITS 32
 

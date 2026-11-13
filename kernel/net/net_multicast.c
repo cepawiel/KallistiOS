@@ -9,16 +9,16 @@
    Basically, this is just a set of convenience functions around the if_set_mc
    function that got added to the netif_t structure. */
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
 #include <kos/net.h>
 #include <kos/mutex.h>
-#include <arch/irq.h>
 
 typedef struct mc_entry {
     LIST_ENTRY(mc_entry)    entry;
-    uint8                   mac[6];
+    uint8_t                 mac[6];
 } mc_entry_t;
 
 LIST_HEAD(mc_list, mc_entry);
@@ -29,7 +29,7 @@ static mutex_t mc_mutex = MUTEX_INITIALIZER;
 static void multicast_commit(void) {
     mc_entry_t *i;
     int tmp = 0;
-    uint8 macs[mc_count * 6];
+    uint8_t macs[mc_count * 6];
 
     if(!net_default_dev) {
         return;
@@ -44,7 +44,7 @@ static void multicast_commit(void) {
     net_default_dev->if_set_mc(net_default_dev, macs, tmp);
 }
 
-int net_multicast_add(const uint8 mac[6]) {
+int net_multicast_add(const uint8_t mac[6]) {
     mc_entry_t *ent;
 
     ent = (mc_entry_t *)malloc(sizeof(mc_entry_t));
@@ -55,14 +55,9 @@ int net_multicast_add(const uint8 mac[6]) {
 
     memcpy(ent->mac, mac, 6);
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&mc_mutex)) {
-            free(ent);
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&mc_mutex);
+    if(mutex_lock_irqsafe(&mc_mutex)) {
+        free(ent);
+        return -1;
     }
 
     LIST_INSERT_HEAD(&multicasts, ent, entry);
@@ -74,17 +69,11 @@ int net_multicast_add(const uint8 mac[6]) {
     return 0;
 }
 
-int net_multicast_del(const uint8 mac[6]) {
+int net_multicast_del(const uint8_t mac[6]) {
     mc_entry_t *i, *tmp;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&mc_mutex)) {
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&mc_mutex);
-    }
+    if(mutex_lock_irqsafe(&mc_mutex))
+        return -1;
 
     /* Look for the one in question */
     i = LIST_FIRST(&multicasts);
@@ -108,18 +97,12 @@ int net_multicast_del(const uint8 mac[6]) {
     return 0;
 }
 
-int net_multicast_check(const uint8 mac[6]) {
+int net_multicast_check(const uint8_t mac[6]) {
     mc_entry_t *i;
     int rv = 0;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&mc_mutex)) {
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&mc_mutex);
-    }
+    if(mutex_lock_irqsafe(&mc_mutex))
+        return -1;
 
     /* Look for the one in question */
     LIST_FOREACH(i, &multicasts, entry) {

@@ -6,10 +6,12 @@
  */
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <arch/memory.h>
+#include <dc/memory.h>
 #include <dc/maple.h>
+#include <kos/dbglog.h>
 
 /* Enable / Disable the bus */
 void maple_bus_enable(void) {
@@ -33,12 +35,12 @@ int maple_dma_in_progress(void) {
 
 /* Set the DMA Address */
 void maple_dma_addr(void *ptr) {
-    maple_write(MAPLE_DMAADDR, ((uint32) ptr) & MEM_AREA_CACHE_MASK);
+    maple_write(MAPLE_DMA_ADDR, ((uint32_t) ptr) & MEM_AREA_CACHE_MASK);
 }
 
 /* Return a "maple address" for a port,unit pair */
-uint8 maple_addr(int port, int unit) {
-    uint8 addr;
+uint8_t maple_addr(int port, int unit) {
+    uint8_t addr;
 
     assert(port < MAPLE_PORT_COUNT && unit < MAPLE_UNIT_COUNT);
 
@@ -54,7 +56,7 @@ uint8 maple_addr(int port, int unit) {
 
 /* Decompose a "maple address" into a port,unit pair */
 /* WARNING: Won't work on multi-cast addresses! */
-void maple_raddr(uint8 addr, int * port, int * unit) {
+void maple_raddr(uint8_t addr, int *port, int *unit) {
     *port = (addr >> 6) & 3;
 
     if(addr & 0x20)
@@ -91,18 +93,20 @@ static const char *maple_cap_names[] = {
     "Camera",
     NULL,
     "Mouse",
-    "JumpPack"
+    "JumpPack",
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    "JVS I/O"
 };
-#define maple_cap_name_cnt (sizeof(maple_cap_names)/sizeof(char *))
 
 /* Print the capabilities of a given driver to dbglog; NOT THREAD SAFE */
-static char caps_buffer[1024];
-const char * maple_pcaps(uint32 functions) {
+static char caps_buffer[64];
+const char *maple_pcaps(uint32_t functions) {
     unsigned int i, o;
 
     for(o = 0, i = 0; i < 32; i++) {
         if(functions & (0x80000000 >> i)) {
-            if(i > maple_cap_name_cnt || maple_cap_names[i] == NULL) {
+            if(i > __array_size(maple_cap_names) || maple_cap_names[i] == NULL) {
                 sprintf(caps_buffer + o, "UNKNOWN(%08x), ", (0x80000000 >> i));
                 o += strlen(caps_buffer + o);
             }
@@ -133,13 +137,12 @@ static const char *maple_resp_names[] = {
     "OK",
     "DATATRF"
 };
-#define maple_resp_name_cnt ((int)(sizeof(maple_resp_names)/sizeof(char *)))
 
 /* Return a string representing the maple response code */
-const char * maple_perror(int response) {
+const char *maple_perror(int response) {
     response += 5;
 
-    if(response < 0 || response >= maple_resp_name_cnt)
+    if(response < 0 || (size_t)response >= __array_size(maple_resp_names))
         return "UNKNOWN";
     else
         return maple_resp_names[response];
@@ -147,7 +150,7 @@ const char * maple_perror(int response) {
 
 /* Determine if a given device is valid */
 int maple_dev_valid(int p, int u) {
-    return maple_state.ports[p].units[u].valid;
+    return !!maple_enum_dev(p, u);
 }
 
 int maple_gun_enable(int port) {
@@ -168,20 +171,21 @@ void maple_gun_read_pos(int *x, int *y) {
     *y = maple_state.gun_y;
 }
 
-#if MAPLE_DMA_DEBUG
 /* Debugging help */
-void maple_sentinel_setup(void * buffer, int bufsize) {
+void maple_sentinel_setup(void *buffer, int bufsize) {
+    assert(__is_defined(MAPLE_DMA_DEBUG));
     assert(bufsize % 4 == 0);
-    memset4(buffer, 0xdeadbeef, bufsize);
+    memset(buffer, 0xdeadbeef, bufsize);
 }
 
-void maple_sentinel_verify(const char * bufname, void * buffer, int bufsize) {
+void maple_sentinel_verify(const char *bufname, void *buffer, int bufsize) {
     int i;
-    uint32 *b32;
+    uint32_t *b32;
 
+    assert(__is_defined(MAPLE_DMA_DEBUG));
     assert(bufsize % 4 == 0);
 
-    b32 = ((uint32 *)buffer) - 512 / 4;
+    b32 = ((uint32_t *)buffer) - 512 / 4;
 
     for(i = 0; i < 512 / 4; i++) {
         if(b32[i] != 0xdeadbeef) {
@@ -191,7 +195,7 @@ void maple_sentinel_verify(const char * bufname, void * buffer, int bufsize) {
         }
     }
 
-    b32 = ((uint32 *)buffer) + bufsize / 4;
+    b32 = ((uint32_t *)buffer) + bufsize / 4;
 
     for(i = 0; i < 512 / 4; i++) {
         if(b32[i] != 0xdeadbeef) {
@@ -201,4 +205,3 @@ void maple_sentinel_verify(const char * bufname, void * buffer, int bufsize) {
         }
     }
 }
-#endif

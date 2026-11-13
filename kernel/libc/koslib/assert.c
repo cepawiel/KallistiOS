@@ -5,19 +5,18 @@
 
 */
 
-// In both the newlib and KOS libc cases, we use our own assert. The
-// assert_msg and assert hooking functionality is just too useful.
+/* In both the newlib and KOS libc cases, we use our own assert. The
+   assert_msg and assert hooking functionality is just too useful. */
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef FRAME_POINTERS
+#include <kos/dbglog.h>
 #include <arch/stack.h>
-#endif
 
 /* The default assert handler */
-static void __noreturn assert_handler_default(const char *file, int line,
+__noinline static void __noreturn assert_handler_default(const char *file, int line,
                             const char *expr, const char *msg, const char *func) {
     dbglog(DBG_CRITICAL, "\n*** ASSERTION FAILURE ***\n");
 
@@ -28,9 +27,8 @@ static void __noreturn assert_handler_default(const char *file, int line,
         dbglog(DBG_CRITICAL, "Assertion \"%s\" failed at %s:%d in `%s': %s\n\n",
                expr, file, line, func, msg);
 
-#ifdef FRAME_POINTERS
-    arch_stk_trace(2);
-#endif
+    arch_stk_trace(0);
+
     abort();
     /* NOT REACHED */
 }

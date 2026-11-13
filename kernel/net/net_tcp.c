@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
@@ -17,16 +18,17 @@
 #include <kos/net.h>
 #include <kos/cond.h>
 #include <kos/mutex.h>
+#include <kos/thread.h>
 #include <kos/rwsem.h>
 #include <kos/fs_socket.h>
 
-#include <arch/timer.h>
+#include <kos/timer.h>
 
 #include <kos/dbglog.h>
 
+#include "net_core.h"
 #include "net_ipv4.h"
 #include "net_ipv6.h"
-#include "net_thd.h"
 
 /* Since some of this is a bit odd in its implementation, here's a few notes on
    what my thinking was while writing all of this...
@@ -100,7 +102,7 @@ typedef struct tcp_hdr {
     uint16_t checksum;
     uint16_t urg;
     uint8_t options[];
-} __attribute__((packed)) tcp_hdr_t;
+} __packed tcp_hdr_t;
 
 /* Listening socket. Each one of these is an incoming connection from a socket
    that is in the listen state */
@@ -132,6 +134,14 @@ struct rcvrec {
     uint32_t irs;
 };
 
+/* Out-of-order segment table for TCP reassembly */
+#define TCP_OOO_MAX 32
+
+struct tcp_ooo_seg {
+    uint32_t seq;
+    uint16_t len;
+};
+
 struct tcp_sock {
     LIST_ENTRY(tcp_sock) sock_list;
     struct sockaddr_in6 local_addr;
@@ -143,7 +153,9 @@ struct tcp_sock {
     file_t sock;
     int state;
     mutex_t mutex;
+    short poll_pending; /* Accumulated POLL* events while mutex is held */
     int hop_limit;
+    int tos;
     uint32_t rcvbuf_sz;
     uint32_t sndbuf_sz;
 
@@ -172,6 +184,9 @@ struct tcp_sock {
             uint64_t timer;
             condvar_t send_cv;
             condvar_t recv_cv;
+            struct tcp_ooo_seg ooo[TCP_OOO_MAX];
+            int ooo_count;
+            uint8_t ack_pending;    /* segments since last ACK */
         } data;
     };
 };
@@ -180,11 +195,11 @@ LIST_HEAD(tcp_sock_list, tcp_sock);
 
 static struct tcp_sock_list tcp_socks = LIST_HEAD_INITIALIZER(0);
 static rw_semaphore_t tcp_sem = RWSEM_INITIALIZER;
-static int thd_cb_id = 0;
 
-/* Default starting window size for connections. This should be big enough as a
-   starting point, in general. If you need to adjust it, you can do so... */
-#define TCP_DEFAULT_WINDOW  8192
+/* Default starting window size for connections. Must fit in uint16_t (max
+   65535 without RFC 1323 window scaling). Larger = more in-flight data =
+   better throughput on links with any latency or reordering. */
+#define TCP_DEFAULT_WINDOW  65535
 
 /* Default MSS */
 #define TCP_DEFAULT_MSS     1460
@@ -198,6 +213,9 @@ static int thd_cb_id = 0;
 
 /* Default hop limit (or ttl for IPv4) for new sockets */
 #define TCP_DEFAULT_HOPS    64
+
+/* Period at which the workqueue job will run */
+#define TCP_POLL_PERIOD_MS  10
 
 /* Flags that can be set in the off_flags field of the above struct */
 #define TCP_FLAG_FIN    0x01
@@ -252,6 +270,7 @@ static int tcp_send_syn(struct tcp_sock *sock, int ack);
 static void tcp_send_ack(struct tcp_sock *sock);
 static void tcp_send_data(struct tcp_sock *sock, int resend);
 static void tcp_send_fin_ack(struct tcp_sock *sock);
+static void tcp_abort(struct tcp_sock *sock);
 
 /* Sockets interface... */
 static int net_tcp_socket(net_socket_t *hnd, int domain, int type, int proto) {
@@ -279,15 +298,9 @@ static int net_tcp_socket(net_socket_t *hnd, int domain, int type, int proto) {
     sock->rcvbuf_sz = TCP_DEFAULT_WINDOW;
     sock->sndbuf_sz = TCP_DEFAULT_WINDOW;
 
-    if(irq_inside_int()) {
-        if(rwsem_write_trylock(&tcp_sem)) {
-            free(sock);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_write_lock(&tcp_sem);
+    if(rwsem_write_lock_irqsafe(&tcp_sem)) {
+        free(sock);
+        return -1;
     }
 
     hnd->data = sock;
@@ -298,39 +311,56 @@ static int net_tcp_socket(net_socket_t *hnd, int domain, int type, int proto) {
     return 0;
 }
 
+static struct tcp_sock *
+net_tcp_write_lock_and_get_sock(net_socket_t *hnd, rw_semaphore_t *sem) {
+    struct tcp_sock *sock;
+
+    if(rwsem_write_lock_irqsafe(sem))
+        return NULL;
+
+    if(!(sock = (struct tcp_sock *)hnd->data)) {
+        rwsem_write_unlock(sem);
+        errno = EBADF;
+        return NULL;
+    }
+
+    if(mutex_lock_irqsafe(&sock->mutex)) {
+        rwsem_write_unlock(sem);
+        return NULL;
+    }
+
+    return sock;
+}
+
+static struct tcp_sock *
+net_tcp_read_lock_and_get_sock(net_socket_t *hnd, rw_semaphore_t *sem) {
+    struct tcp_sock *sock;
+
+    if(rwsem_read_lock_irqsafe(sem))
+        return NULL;
+
+    if(!(sock = (struct tcp_sock *)hnd->data)) {
+        rwsem_read_unlock(sem);
+        errno = EBADF;
+        return NULL;
+    }
+
+    if(mutex_lock_irqsafe(&sock->mutex)) {
+        rwsem_read_unlock(sem);
+        return NULL;
+    }
+
+    return sock;
+}
+
 static void net_tcp_close(net_socket_t *hnd) {
     struct tcp_sock *sock;
     struct lsock *ls;
-    int i;
+    int i, listening;
 
 retry:
-
-    if(irq_inside_int()) {
-        if(rwsem_write_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return;
-        }
-    }
-    else {
-        rwsem_write_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_write_unlock(&tcp_sem);
-        errno = EBADF;
+    if(!(sock = net_tcp_write_lock_and_get_sock(hnd, &tcp_sem)))
         return;
-    }
-
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            errno = EWOULDBLOCK;
-            rwsem_write_unlock(&tcp_sem);
-            return;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
 
     /* This is to work-around the ugly issue discussed in the accept() function.
        This is... well, bad... Granted, you really shouldn't ever have this
@@ -347,6 +377,8 @@ retry:
         thd_pass();
         goto retry;
     }
+
+    listening = sock->state == TCP_STATE_LISTEN;
 
     /* Deal with queued data and/or connections and sending the closing messages
        as appropriate. */
@@ -382,6 +414,12 @@ retry:
             goto ret_remove;
 
         case TCP_STATE_ESTABLISHED:
+
+            /* Unread data is being discarded: reset (RFC 9293 3.6.1) */
+            if(sock->data.rcvbuf_cur_sz) {
+                tcp_abort(sock);
+                goto ret_no_remove;
+            }
 
             /* See if all sends have finished... */
             if(sock->data.sndbuf_cur_sz) {
@@ -436,17 +474,21 @@ ret_remove:
     return;
 
 ret_no_remove:
-    if(sock->state != TCP_STATE_LISTEN)
+    if(sock->state != TCP_STATE_LISTEN) {
         sock->intflags = TCP_IFLAG_CANBEDEL;
+
+        if(!listening)
+            sock->data.timer = timer_ms_gettime64();
+    }
 
     if(sock->state == TCP_STATE_ESTABLISHED ||
             sock->state == TCP_STATE_CLOSE_WAIT)
         sock->intflags |= TCP_IFLAG_QUEUEDCLOSE;
 
-    sock->sock = -1;
+    sock->sock = FILEHND_INVALID;
 
     /* Don't free anything here, it will be dealt with later on in the
-       net_thd callback. */
+       workqueue job. */
     mutex_unlock(&sock->mutex);
     rwsem_write_unlock(&tcp_sem);
     return;
@@ -465,37 +507,11 @@ static int net_tcp_accept(net_socket_t *hnd, struct sockaddr *addr,
         return -1;
     }
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
-
-    /* Lock the mutex on the socket itself first. We need to pull some data from
-       it that doesn't affect the rest of the list, so let's start there... */
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        errno = EBADF;
-        rwsem_read_unlock(&tcp_sem);
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
         return -1;
-    }
 
-    if(irq_inside_int()) {
-        canblock = 0;
-
-        if(mutex_trylock(&sock->mutex)) {
-            errno = EWOULDBLOCK;
-            rwsem_read_unlock(&tcp_sem);
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-        canblock = !(sock->flags & FS_SOCKET_NONBLOCK);
-    }
+    canblock = !irq_inside_int()
+        && !(sock->flags & FS_SOCKET_NONBLOCK);
 
     rwsem_read_unlock(&tcp_sem);
 
@@ -794,32 +810,8 @@ static int net_tcp_bind(net_socket_t *hnd, const struct sockaddr *addr,
             return -1;
     }
 
-    if(irq_inside_int()) {
-        if(rwsem_write_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_write_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_write_unlock(&tcp_sem);
-        errno = EBADF;
+    if(!(sock = net_tcp_write_lock_and_get_sock(hnd, &tcp_sem)))
         return -1;
-    }
-
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_write_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
 
     /* Make sure the socket is still in the closed state and hasn't already been
        bound. */
@@ -859,16 +851,10 @@ static int net_tcp_bind(net_socket_t *hnd, const struct sockaddr *addr,
             if(iter == sock)
                 continue;
 
-            if(irq_inside_int()) {
-                if(mutex_trylock(&iter->mutex)) {
-                    mutex_unlock(&sock->mutex);
-                    rwsem_write_unlock(&tcp_sem);
-                    errno = EWOULDBLOCK;
-                    return -1;
-                }
-            }
-            else {
-                mutex_lock(&iter->mutex);
+            if(mutex_lock_irqsafe(&iter->mutex)) {
+                mutex_unlock(&sock->mutex);
+                rwsem_write_unlock(&tcp_sem);
+                return -1;
             }
 
             if(iter->local_addr.sin6_port == realaddr6.sin6_port) {
@@ -885,9 +871,10 @@ static int net_tcp_bind(net_socket_t *hnd, const struct sockaddr *addr,
         sock->local_addr = realaddr6;
     }
     else {
-        uint16_t port = 1024, tmp = 0;
+        static uint16_t next_bind_ephemeral = 1024;
+        uint16_t port = next_bind_ephemeral, tmp = 0;
 
-        /* Grab the first unused port >= 1024. This is, unfortunately, O(n^2) */
+        /* Grab the first unused port >= next_bind_ephemeral. */
         while(tmp != port) {
             tmp = port;
 
@@ -895,20 +882,16 @@ static int net_tcp_bind(net_socket_t *hnd, const struct sockaddr *addr,
                 if(iter == sock)
                     continue;
 
-                if(irq_inside_int()) {
-                    if(mutex_trylock(&iter->mutex)) {
-                        mutex_unlock(&sock->mutex);
-                        rwsem_write_unlock(&tcp_sem);
-                        errno = EWOULDBLOCK;
-                        return -1;
-                    }
-                }
-                else {
-                    mutex_lock(&iter->mutex);
+                if(mutex_lock_irqsafe(&iter->mutex)) {
+                    mutex_unlock(&sock->mutex);
+                    rwsem_write_unlock(&tcp_sem);
+                    return -1;
                 }
 
-                if(iter->local_addr.sin6_port == port) {
+                if(iter->local_addr.sin6_port == htons(port)) {
+                    mutex_unlock(&iter->mutex);
                     ++port;
+                    if(port > 65000) port = 1024;
                     break;
                 }
 
@@ -918,6 +901,8 @@ static int net_tcp_bind(net_socket_t *hnd, const struct sockaddr *addr,
 
         sock->local_addr = realaddr6;
         sock->local_addr.sin6_port = htons(port);
+        next_bind_ephemeral = port + 1;
+        if(next_bind_ephemeral > 65000) next_bind_ephemeral = 1024;
     }
 
     /* Release the locks, we're done */
@@ -982,32 +967,8 @@ static int net_tcp_connect(net_socket_t *hnd, const struct sockaddr *addr,
             return -1;
     }
 
-    if(irq_inside_int()) {
-        if(rwsem_write_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_write_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_write_unlock(&tcp_sem);
-        errno = EBADF;
+    if(!(sock = net_tcp_write_lock_and_get_sock(hnd, &tcp_sem)))
         return -1;
-    }
-
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_write_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
 
     /* Make sure the socket is still in the CLOSED state */
     if(sock->state != TCP_STATE_CLOSED) {
@@ -1046,7 +1007,8 @@ static int net_tcp_connect(net_socket_t *hnd, const struct sockaddr *addr,
 
     /* See if the socket is already bound to a local port */
     if(!sock->local_addr.sin6_port) {
-        uint16_t port = 1024, tmp = 0;
+        static uint16_t next_ephemeral = 1024;
+        uint16_t port = next_ephemeral, tmp = 0;
 
         /* Grab the first unused port >= 1024. This is, unfortunately, O(n^2) */
         while(tmp != port) {
@@ -1056,19 +1018,14 @@ static int net_tcp_connect(net_socket_t *hnd, const struct sockaddr *addr,
                 if(iter == sock)
                     continue;
 
-                if(irq_inside_int()) {
-                    if(mutex_trylock(&iter->mutex)) {
-                        mutex_unlock(&sock->mutex);
-                        rwsem_write_unlock(&tcp_sem);
-                        errno = EWOULDBLOCK;
-                        return -1;
-                    }
-                }
-                else {
-                    mutex_lock(&iter->mutex);
+                if(mutex_lock_irqsafe(&iter->mutex)) {
+                    mutex_unlock(&sock->mutex);
+                    rwsem_write_unlock(&tcp_sem);
+                    return -1;
                 }
 
-                if(iter->local_addr.sin6_port == port) {
+                if(iter->local_addr.sin6_port == htons(port)) {
+                    mutex_unlock(&iter->mutex);
                     ++port;
                     break;
                 }
@@ -1078,6 +1035,8 @@ static int net_tcp_connect(net_socket_t *hnd, const struct sockaddr *addr,
         }
 
         sock->local_addr.sin6_port = htons(port);
+        next_ephemeral = port + 1;
+        if(next_ephemeral > 65000) next_ephemeral = 1024;
 
         if(addr->sa_family == AF_INET) {
             sock->local_addr.sin6_addr.__s6_addr.__s6_addr16[5] = 0xFFFF;
@@ -1179,34 +1138,10 @@ static int net_tcp_listen(net_socket_t *hnd, int backlog) {
     else if(backlog <= 0)
         backlog = 1;
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_read_unlock(&tcp_sem);
-        errno = EBADF;
-        return -1;
-    }
-
     /* Lock the socket's mutex, since we're going to be manipulating its state
        in here... */
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
+        return -1;
 
     /* Make sure the socket is still in the closed state, otherwise we can't
        actually move it to the listening state */
@@ -1270,34 +1205,10 @@ static ssize_t net_tcp_recvfrom(net_socket_t *hnd, void *buffer, size_t length,
         return -1;
     }
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_read_unlock(&tcp_sem);
-        errno = EBADF;
-        return -1;
-    }
-
     /* Lock the socket's mutex, since we're going to be manipulating its state
        in here... */
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
+        return -1;
 
     rwsem_read_unlock(&tcp_sem);
 
@@ -1367,8 +1278,27 @@ static ssize_t net_tcp_recvfrom(net_socket_t *hnd, void *buffer, size_t length,
                request... */
             while(sock->data.rcvbuf_cur_sz < length) {
                 cond_wait(&sock->data.recv_cv, &sock->mutex);
+
+                /* Connection closed or reset while waiting; stop blocking forever. */
+                if(sock->state == TCP_STATE_CLOSED ||
+                   sock->state == TCP_STATE_CLOSE_WAIT ||
+                   sock->state == TCP_STATE_CLOSING ||
+                   sock->state == TCP_STATE_LAST_ACK ||
+                   sock->state == TCP_STATE_TIME_WAIT ||
+                   (sock->state & TCP_STATE_RESET))
+                    break;
             }
         }
+    }
+
+    /* Nothing buffered: report reset as error, otherwise signal end-of-stream. */
+    if(sock->data.rcvbuf_cur_sz == 0) {
+        if(sock->state & TCP_STATE_RESET) {
+            errno = ECONNRESET;
+            size = -1;
+        }
+
+        goto out;
     }
 
     /* Figure out how much we're going to give the user. */
@@ -1381,8 +1311,26 @@ static ssize_t net_tcp_recvfrom(net_socket_t *hnd, void *buffer, size_t length,
 
     /* Advance the window if we're pulling data out of the queue. */
     if(!(flags & MSG_PEEK)) {
+        uint32_t old_wnd = sock->data.rcv.wnd;
         sock->data.rcv.wnd += size;
         sock->data.rcvbuf_cur_sz -= size;
+
+        /* Send a window-update ACK once the read has reopened the window,
+           so the sender doesn't stall waiting for the next delayed ACK.
+           Fire when it reopens from zero (sender in TCP persist mode) or
+           by at least one MSS (SWS avoidance). */
+        if((old_wnd == 0 && sock->data.rcv.wnd > 0) ||
+                sock->data.rcv.wnd >= old_wnd + sock->data.snd.mss) {
+            tcp_send_ack(sock);
+            sock->data.ack_pending = 0;
+        }
+        /* Flush any pending delayed ACK now that the app has read.
+           This gets the ACK out immediately instead of waiting up to
+           10ms for the timer, reducing effective RTT significantly. */
+        else if(sock->data.ack_pending > 0) {
+            tcp_send_ack(sock);
+            sock->data.ack_pending = 0;
+        }
     }
 
     if(sock->data.rcvbuf_head + size <= sock->rcvbuf_sz) {
@@ -1404,8 +1352,11 @@ static ssize_t net_tcp_recvfrom(net_socket_t *hnd, void *buffer, size_t length,
             sock->data.rcvbuf_head = size - tmp;
     }
 
-    /* If we've got nothing left, move the pointers back to the beginning */
-    if(!sock->data.rcvbuf_cur_sz) {
+    /* If we've got nothing left, move the pointers back to the beginning.
+       But NOT if there are OOO segments buffered — their data was placed
+       at offsets relative to the current tail. Resetting tail to 0 would
+       make tcp_ooo_consume look for data at the wrong position. */
+    if(!sock->data.rcvbuf_cur_sz && !sock->data.ooo_count) {
         sock->data.rcvbuf_head = sock->data.rcvbuf_tail = 0;
     }
 
@@ -1464,34 +1415,10 @@ static ssize_t net_tcp_sendto(net_socket_t *hnd, const void *message,
         return -1;
     }
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_read_unlock(&tcp_sem);
-        errno = EBADF;
-        return -1;
-    }
-
     /* Lock the socket's mutex, since we're going to be manipulating its state
        in here... */
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
+        return -1;
 
     rwsem_read_unlock(&tcp_sem);
 
@@ -1602,32 +1529,8 @@ out:
 static int net_tcp_shutdownsock(net_socket_t *hnd, int how) {
     struct tcp_sock *sock;
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_read_unlock(&tcp_sem);
-        errno = EBADF;
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
         return -1;
-    }
-
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
 
     if(how & 0xFFFFFFFC) {
         mutex_unlock(&sock->mutex);
@@ -1654,32 +1557,8 @@ static int net_tcp_getsockopt(net_socket_t *hnd, int level, int option_name,
         return -1;
     }
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_read_unlock(&tcp_sem);
-        errno = EBADF;
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
         return -1;
-    }
-
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
 
     switch(level) {
         case SOL_SOCKET:
@@ -1715,6 +1594,9 @@ static int net_tcp_getsockopt(net_socket_t *hnd, int level, int option_name,
             switch(option_name) {
                 case IP_TTL:
                     tmp = sock->hop_limit;
+                    goto copy_int;
+                case IP_TOS:
+                    tmp = sock->tos;
                     goto copy_int;
             }
 
@@ -1784,32 +1666,8 @@ static int net_tcp_setsockopt(net_socket_t *hnd, int level, int option_name,
         return -1;
     }
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_read_unlock(&tcp_sem);
-        errno = EBADF;
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
         return -1;
-    }
-
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
 
     switch(level) {
         case SOL_SOCKET:
@@ -1843,11 +1701,13 @@ static int net_tcp_setsockopt(net_socket_t *hnd, int level, int option_name,
                         goto ret_inval;
 
                     tmp = *(uint32_t *)option_value;
-                    /* Send buffer size must be in the range 2048 - 65535 */
+                    /* Local staging send buffer size for outbound data
+                       (unsent + unacked). Not a wire value, so unlike SO_RCVBUF
+                       it isn't bound by the 16-bit window field. */
                     if(tmp < 2048)
                         tmp = 2048;
-                    else if(tmp > 65535)
-                        tmp = 65535;
+                    else if(tmp > 1024 * 1024)
+                        tmp = 1024 * 1024;
 
                     new_ptr = realloc(sock->data.sndbuf, tmp);
                     if(!new_ptr) {
@@ -1878,6 +1738,18 @@ static int net_tcp_setsockopt(net_socket_t *hnd, int level, int option_name,
                         sock->hop_limit = TCP_DEFAULT_HOPS;
                     else
                         sock->hop_limit = tmp;
+
+                    goto ret_success;
+                case IP_TOS:
+                    if(option_len != sizeof(int))
+                        goto ret_inval;
+
+                    tmp = *((int *)option_value);
+
+                    if(tmp < 0 || tmp > 255)
+                        goto ret_inval;
+                    else
+                        sock->tos = tmp;
 
                     goto ret_success;
             }
@@ -1972,32 +1844,8 @@ static int net_tcp_getsockname(net_socket_t *hnd, struct sockaddr *name,
         return -1;
     }
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
-
-    if(!(sock = (struct tcp_sock *)hnd->data)) {
-        rwsem_read_unlock(&tcp_sem);
-        errno = EBADF;
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
         return -1;
-    }
-
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
-    }
 
     if(sock->domain == AF_INET) {
         memset(&realaddr, 0, sizeof(struct sockaddr_in));
@@ -2046,19 +1894,22 @@ ret_success:
     return 0;
 }
 
-static int net_tcp_fcntl(net_socket_t *hnd, int cmd, va_list ap) {
-
+static int net_tcp_getpeername(net_socket_t *hnd, struct sockaddr *name, socklen_t *name_len) {
     struct tcp_sock *sock;
-    int rv = -1;
-    long val;
+    struct sockaddr_in realaddr;
+    struct sockaddr_in6 realaddr6;
+
+    if(!name || !name_len) {
+        errno = EFAULT;
+        return -1;
+    }
 
     if(irq_inside_int()) {
         if(rwsem_read_trylock(&tcp_sem)) {
             errno = EWOULDBLOCK;
             return -1;
         }
-    }
-    else {
+    } else {
         rwsem_read_lock(&tcp_sem);
     }
 
@@ -2068,18 +1919,71 @@ static int net_tcp_fcntl(net_socket_t *hnd, int cmd, va_list ap) {
         return -1;
     }
 
-    /* Lock the socket's mutex, since we're going to be manipulating its state
-       in here... */
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            errno = EWOULDBLOCK;
-            return -1;
+    if(mutex_lock_irqsafe(&sock->mutex)) {
+        rwsem_read_unlock(&tcp_sem);
+        errno = EWOULDBLOCK;
+        return -1;
+    }
+
+    if(sock->state == TCP_STATE_CLOSED) {
+        mutex_unlock(&sock->mutex);
+        rwsem_read_unlock(&tcp_sem);
+        errno = ENOTCONN;
+        return -1;
+    }
+
+    if(sock->domain == AF_INET) {
+        memset(&realaddr, 0, sizeof(struct sockaddr_in));
+        realaddr.sin_family = AF_INET;
+        realaddr.sin_addr.s_addr =
+            sock->remote_addr.sin6_addr.__s6_addr.__s6_addr32[3];
+        realaddr.sin_port = sock->remote_addr.sin6_port;
+
+        if(*name_len <= sizeof(struct sockaddr_in)) {
+            /* Passed in a structure not big enough so truncate*/
+            memcpy(name, &realaddr, *name_len);
+            errno = ENOBUFS;
+        } else {
+            memcpy(name, &realaddr, sizeof(struct sockaddr_in));
+            *name_len = sizeof(struct sockaddr_in);
+            goto ret_success;
+        }
+    } else if(sock->domain == AF_INET6) {
+        memset(&realaddr6, 0, sizeof(struct sockaddr_in6));
+        realaddr6.sin6_family = AF_INET6;
+        realaddr6.sin6_addr = sock->remote_addr.sin6_addr;
+        realaddr6.sin6_port = sock->remote_addr.sin6_port;
+
+        if(*name_len <= sizeof(struct sockaddr_in6)) {
+            /* Passed in a structure not big enough */
+            memcpy(name, &realaddr6, *name_len);
+            errno = ENOBUFS;
+        } else {
+            memcpy(name, &realaddr6, sizeof(struct sockaddr_in6));
+            *name_len = sizeof(struct sockaddr_in6);
+            goto ret_success;
         }
     }
-    else {
-        mutex_lock(&sock->mutex);
-    }
+
+    mutex_unlock(&sock->mutex);
+    rwsem_read_unlock(&tcp_sem);
+    errno = ENOTSOCK;
+    return -1;
+
+ret_success:
+    mutex_unlock(&sock->mutex);
+    rwsem_read_unlock(&tcp_sem);
+    return 0;
+}
+
+static int net_tcp_fcntl(net_socket_t *hnd, int cmd, va_list ap) {
+
+    struct tcp_sock *sock;
+    int rv = -1;
+    long val;
+
+    if(!(sock = net_tcp_read_lock_and_get_sock(hnd, &tcp_sem)))
+        return -1;
 
     switch(cmd) {
         case F_SETFL:
@@ -2119,14 +2023,8 @@ static short net_tcp_poll(net_socket_t *hnd, short events) {
     struct tcp_sock *sock;
     short rv = 0;
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            return 0;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
+    if(rwsem_read_lock_irqsafe(&tcp_sem))
+        return 0;
 
     /* Lock the mutex on the socket itself first. We need to pull some data from
        it that doesn't affect the rest of the list, so let's start there... */
@@ -2135,14 +2033,9 @@ static short net_tcp_poll(net_socket_t *hnd, short events) {
         return POLLNVAL;
     }
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&sock->mutex)) {
-            rwsem_read_unlock(&tcp_sem);
-            return 0;
-        }
-    }
-    else {
-        mutex_lock(&sock->mutex);
+    if(mutex_lock_irqsafe(&sock->mutex)) {
+        rwsem_read_unlock(&tcp_sem);
+        return 0;
     }
 
     switch(sock->state) {
@@ -2198,7 +2091,7 @@ static void tcp_rst(netif_t *net, const struct in6_addr *src,
                     uint16_t dst_port, uint16_t flags, uint32_t seq,
                     uint32_t ack) {
     tcp_hdr_t pkt;
-    uint16 c;
+    uint16_t c;
 
     /* Fill in the packet */
     pkt.src_port = src_port;
@@ -2211,9 +2104,9 @@ static void tcp_rst(netif_t *net, const struct in6_addr *src,
     pkt.urg = 0;
 
     c = net_ipv6_checksum_pseudo(src, dst, sizeof(tcp_hdr_t), IPPROTO_TCP);
-    pkt.checksum = net_ipv4_checksum((const uint8 *)&pkt, sizeof(tcp_hdr_t), c);
+    pkt.checksum = net_ipv4_checksum((const uint8_t *)&pkt, sizeof(tcp_hdr_t), c);
 
-    net_ipv6_send(net, (const uint8 *)&pkt, sizeof(tcp_hdr_t), 0, IPPROTO_TCP,
+    net_ipv6_send(net, (const uint8_t *)&pkt, sizeof(tcp_hdr_t), 0, 0, IPPROTO_TCP,
                   src, dst);
 }
 
@@ -2221,8 +2114,8 @@ static void tcp_bpkt_rst(netif_t *net, const struct in6_addr *src,
                          const struct in6_addr *dst, const tcp_hdr_t *ohdr,
                          int size) {
     tcp_hdr_t pkt;
-    uint16 cs;
-    uint16 flags = ntohs(ohdr->off_flags);
+    uint16_t cs;
+    uint16_t flags = ntohs(ohdr->off_flags);
 
     /* Fill in the packet */
     pkt.src_port = ohdr->dst_port;
@@ -2251,10 +2144,10 @@ static void tcp_bpkt_rst(netif_t *net, const struct in6_addr *src,
     pkt.urg = 0;
 
     cs = net_ipv6_checksum_pseudo(dst, src, sizeof(tcp_hdr_t), IPPROTO_TCP);
-    pkt.checksum = net_ipv4_checksum((const uint8 *)&pkt, sizeof(tcp_hdr_t),
+    pkt.checksum = net_ipv4_checksum((const uint8_t *)&pkt, sizeof(tcp_hdr_t),
                                      cs);
 
-    net_ipv6_send(net, (const uint8 *)&pkt, sizeof(tcp_hdr_t), 0, IPPROTO_TCP,
+    net_ipv6_send(net, (const uint8_t *)&pkt, sizeof(tcp_hdr_t), 0, 0, IPPROTO_TCP,
                   dst, src);
 }
 
@@ -2293,7 +2186,7 @@ static int tcp_send_syn(struct tcp_sock *sock, int ack) {
     hdr->checksum = net_ipv4_checksum(rawpkt, sizeof(tcp_hdr_t) + 4, cs);
 
     return net_ipv6_send(sock->data.net, rawpkt, sizeof(tcp_hdr_t) + 4,
-                         sock->hop_limit, IPPROTO_TCP,
+                         sock->hop_limit, sock->tos, IPPROTO_TCP,
                          &sock->local_addr.sin6_addr,
                          &sock->remote_addr.sin6_addr);
 }
@@ -2320,7 +2213,7 @@ static void tcp_send_fin_ack(struct tcp_sock *sock) {
     hdr->checksum = net_ipv4_checksum(rawpkt, sizeof(tcp_hdr_t), cs);
 
     net_ipv6_send(sock->data.net, rawpkt, sizeof(tcp_hdr_t), sock->hop_limit,
-                  IPPROTO_TCP, &sock->local_addr.sin6_addr,
+                  sock->tos, IPPROTO_TCP, &sock->local_addr.sin6_addr,
                   &sock->remote_addr.sin6_addr);
 }
 
@@ -2342,21 +2235,33 @@ static void tcp_send_ack(struct tcp_sock *sock) {
     c = net_ipv6_checksum_pseudo(&sock->local_addr.sin6_addr,
                                  &sock->remote_addr.sin6_addr,
                                  sizeof(tcp_hdr_t), IPPROTO_TCP);
-    hdr.checksum = net_ipv4_checksum((const uint8 *)&hdr, sizeof(tcp_hdr_t), c);
+    hdr.checksum = net_ipv4_checksum((const uint8_t *)&hdr, sizeof(tcp_hdr_t), c);
 
-    net_ipv6_send(sock->data.net, (const uint8 *)&hdr, sizeof(tcp_hdr_t),
-                  sock->hop_limit, IPPROTO_TCP, &sock->local_addr.sin6_addr,
+    net_ipv6_send(sock->data.net, (const uint8_t *)&hdr, sizeof(tcp_hdr_t),
+                  sock->hop_limit, sock->tos, IPPROTO_TCP, &sock->local_addr.sin6_addr,
                   &sock->remote_addr.sin6_addr);
+}
+
+/* Reset the connection, leaving the socket closed. */
+static void tcp_abort(struct tcp_sock *sock) {
+    tcp_rst(sock->data.net, &sock->local_addr.sin6_addr,
+            &sock->remote_addr.sin6_addr, sock->local_addr.sin6_port,
+            sock->remote_addr.sin6_port, TCP_FLAG_RST | TCP_FLAG_ACK,
+            sock->data.snd.nxt, sock->data.rcv.nxt);
+    sock->state = TCP_STATE_RESET | TCP_STATE_CLOSED;
 }
 
 static void tcp_send_data(struct tcp_sock *sock, int resend) {
     uint32_t wnd = sock->data.snd.wnd, snd;
-    int sz = sizeof(tcp_hdr_t);
-    uint8_t rawpkt[1500];
-    tcp_hdr_t *hdr = (tcp_hdr_t *)rawpkt;
+    int sz;
+    alignas(32) uint8_t frame[NET_IPV4_FRAME_HDR_SIZE + 1500];
+    uint8_t *seg = frame + NET_IPV4_FRAME_HDR_SIZE;
+    tcp_hdr_t *hdr = (tcp_hdr_t *)seg;
     uint16_t cs;
     uint8_t *sb, *buf;
     uint32_t seq, unacked, head;
+    int v4;
+    uint32_t v4src = 0, v4dst = 0;
 
     if(!resend) {
         seq = sock->data.snd.nxt;
@@ -2373,6 +2278,15 @@ static void tcp_send_data(struct tcp_sock *sock, int resend) {
     if(!wnd)
         wnd = 1;
 
+    /* Use the zero-extra-copy IPv4 path when both ends are V4-mapped. */
+    v4 = IN6_IS_ADDR_V4MAPPED(&sock->local_addr.sin6_addr) &&
+         IN6_IS_ADDR_V4MAPPED(&sock->remote_addr.sin6_addr);
+
+    if(v4) {
+        v4src = sock->local_addr.sin6_addr.__s6_addr.__s6_addr32[3];
+        v4dst = sock->remote_addr.sin6_addr.__s6_addr.__s6_addr32[3];
+    }
+
     /* Fill in the base packet */
     hdr->src_port = sock->local_addr.sin6_port;
     hdr->dst_port = sock->remote_addr.sin6_port;
@@ -2385,17 +2299,17 @@ static void tcp_send_data(struct tcp_sock *sock, int resend) {
     while(sock->data.sndbuf_cur_sz - unacked && wnd) {
         hdr->seq = htonl(seq);
         hdr->checksum = 0;
-        buf = rawpkt + sizeof(tcp_hdr_t);
+        buf = seg + sizeof(tcp_hdr_t);
         sb = sock->data.sndbuf + head;
         snd = wnd;
 
-        if(snd > sock->data.snd.mss - sizeof(tcp_hdr_t))
-            snd = sock->data.snd.mss - sizeof(tcp_hdr_t);
+        if(snd > sock->data.snd.mss)
+            snd = sock->data.snd.mss;
 
         if(snd > sock->data.sndbuf_cur_sz - unacked)
             snd = sock->data.sndbuf_cur_sz - unacked;
 
-        /* Copy in the data */
+        /* Copy in the data(unavoidable copy) */
         if(head + snd <= sock->sndbuf_sz) {
             memcpy(buf, sb, snd);
             head += snd;
@@ -2419,11 +2333,15 @@ static void tcp_send_data(struct tcp_sock *sock, int resend) {
         cs = net_ipv6_checksum_pseudo(&sock->local_addr.sin6_addr,
                                       &sock->remote_addr.sin6_addr, sz,
                                       IPPROTO_TCP);
-        hdr->checksum = net_ipv4_checksum(rawpkt, sz, cs);
+        hdr->checksum = net_ipv4_checksum(seg, sz, cs);
 
-        net_ipv6_send(sock->data.net, rawpkt, sz, sock->hop_limit, IPPROTO_TCP,
-                      &sock->local_addr.sin6_addr,
-                      &sock->remote_addr.sin6_addr);
+        if(v4)
+            net_ipv4_send_inplace(sock->data.net, frame, sz, -1,
+                                  sock->hop_limit, sock->tos, IPPROTO_TCP, v4src, v4dst);
+        else
+            net_ipv6_send(sock->data.net, seg, sz, sock->hop_limit, sock->tos, IPPROTO_TCP,
+                          &sock->local_addr.sin6_addr,
+                          &sock->remote_addr.sin6_addr);
     }
 
     sock->data.timer = timer_ms_gettime64();
@@ -2469,13 +2387,8 @@ static struct tcp_sock *find_sock(const struct in6_addr *src,
                 i->local_addr.sin6_port != dport)
             continue;
 
-        if(irq_inside_int()) {
-            if(mutex_trylock(&i->mutex))
-                return (struct tcp_sock *) - 1;
-        }
-        else {
-            mutex_lock(&i->mutex);
-        }
+        if(mutex_lock_irqsafe(&i->mutex))
+            return (struct tcp_sock *) -1;
 
         /* Because we always add new sockets to the head of the list, this
            should be sufficient to match the socket. See the comment at the top
@@ -2579,7 +2492,7 @@ static int listen_pkt(netif_t *src, const struct in6_addr *srca,
         s->listen.tail = 0;
 
     /* Signal the condvar, in case anyone's waiting */
-    __poll_event_trigger(s->sock, POLLRDNORM);
+    s->poll_pending |= POLLRDNORM;
     cond_signal(&s->listen.cv);
 
     /* We're done, return success. */
@@ -2615,7 +2528,7 @@ static int synsent_pkt(netif_t *src, const struct in6_addr *srca,
     if(flags & TCP_FLAG_RST) {
         if(gotack) {
             s->state = TCP_STATE_CLOSED | TCP_STATE_RESET;
-            __poll_event_trigger(s->sock, POLLHUP);
+            s->poll_pending |= POLLHUP;
             cond_signal(&s->data.recv_cv);
             cond_signal(&s->data.send_cv);
             return 0;
@@ -2672,19 +2585,89 @@ static int synsent_pkt(netif_t *src, const struct in6_addr *srca,
             if(SEQ_GT(ack, s->data.snd.iss)) {
                 s->state = TCP_STATE_ESTABLISHED;
                 tcp_send_ack(s);
-                __poll_event_trigger(s->sock, POLLWRNORM | POLLWRBAND);
+                s->poll_pending |= (POLLWRNORM | POLLWRBAND);
                 cond_signal(&s->data.send_cv);
             }
         }
         else {
             s->state = TCP_STATE_SYN_RECEIVED;
             tcp_send_syn(s, 1);
-            __poll_event_trigger(s->sock, POLLWRNORM | POLLWRBAND);
+            s->poll_pending |= (POLLWRNORM | POLLWRBAND);
             cond_signal(&s->data.send_cv);
         }
     }
 
     return 0;
+}
+
+/* Buffer an out-of-order segment: copy data to the correct offset in
+   the circular receive buffer, and record the range in the OOO table. */
+/* Returns 0 on success, -1 if table is full (data NOT buffered). */
+static int tcp_ooo_add(struct tcp_sock *s, uint32_t seq, size_t sz,
+                        const uint8_t *data) {
+    if(s->data.ooo_count >= TCP_OOO_MAX)
+        return -1;
+
+    /* Reject duplicates — if this segment overlaps with an existing
+       OOO entry, skip it. Without this check, retransmitted OOO
+       segments decrement rcv.wnd repeatedly, eventually leaking
+       the window to zero and deadlocking the connection. */
+    for(int i = 0; i < s->data.ooo_count; i++) {
+        uint32_t ooo_end = s->data.ooo[i].seq + s->data.ooo[i].len;
+        if(SEQ_GE(seq, s->data.ooo[i].seq) && SEQ_LT(seq, ooo_end))
+            return -1;
+    }
+
+    /* Place data at correct offset in the circular buffer */
+    uint32_t gap = (uint32_t)(seq - s->data.rcv.nxt);
+    uint32_t offset = (s->data.rcvbuf_tail + gap) % s->rcvbuf_sz;
+
+    if(offset + sz <= s->rcvbuf_sz) {
+        memcpy(s->data.rcvbuf + offset, data, sz);
+    }
+    else {
+        uint32_t first = s->rcvbuf_sz - offset;
+        memcpy(s->data.rcvbuf + offset, data, first);
+        memcpy(s->data.rcvbuf, data + first, sz - first);
+    }
+
+    s->data.ooo[s->data.ooo_count].seq = seq;
+    s->data.ooo[s->data.ooo_count].len = (uint16_t)sz;
+    s->data.ooo_count++;
+    return 0;
+}
+
+/* After an in-order segment advances rcv.nxt, check if any buffered
+   OOO segments are now contiguous and can be consumed. Returns total
+   additional bytes consumed (data already in the buffer). */
+static uint32_t tcp_ooo_consume(struct tcp_sock *s) {
+    uint32_t total = 0;
+    int changed;
+
+    do {
+        changed = 0;
+        for(int i = 0; i < s->data.ooo_count; i++) {
+            uint32_t seg_end = s->data.ooo[i].seq + s->data.ooo[i].len;
+
+            /* Stale entry (behind rcv.nxt) — remove */
+            if(SEQ_LE(seg_end, s->data.rcv.nxt)) {
+                s->data.ooo[i] = s->data.ooo[--s->data.ooo_count];
+                changed = 1;
+                break;
+            }
+
+            /* Contiguous — consume */
+            if(s->data.ooo[i].seq == s->data.rcv.nxt) {
+                total += s->data.ooo[i].len;
+                s->data.rcv.nxt += s->data.ooo[i].len;
+                s->data.ooo[i] = s->data.ooo[--s->data.ooo_count];
+                changed = 1;
+                break;
+            }
+        }
+    } while(changed);
+
+    return total;
 }
 
 /* This implements the processing described for the synchronized states, as
@@ -2708,6 +2691,17 @@ static int process_pkt(netif_t *src, const struct in6_addr *srca,
     sz = size - TCP_GET_OFFSET(flags);
     buf += TCP_GET_OFFSET(flags);
 
+    /* Data for a socket that has been closed can never be read: reset the
+       connection (RFC 9293 3.6.1) */
+    if(sz && (s->intflags & TCP_IFLAG_CANBEDEL)) {
+        if(!(flags & TCP_FLAG_RST))
+            tcp_abort(s);
+        else
+            s->state = TCP_STATE_RESET | TCP_STATE_CLOSED;
+
+        return 0;
+    }
+
     if(s->data.rcv.wnd == 0) {
         if(sz || seq != s->data.rcv.nxt)
             bad_pkt = 1;
@@ -2719,6 +2713,9 @@ static int process_pkt(netif_t *src, const struct in6_addr *srca,
                 bad_pkt = 1;
         }
         else {
+            /* Accept data segments anywhere in [rcv.nxt, rcv.nxt+wnd).
+               In-order segments (seq == rcv.nxt) go straight to the app.
+               Out-of-order segments are buffered for reassembly. */
             if(!(SEQ_GE(seq, s->data.rcv.nxt) &&
                     SEQ_LT(seq, s->data.rcv.nxt + s->data.rcv.wnd)))
                 bad_pkt = 1;
@@ -2752,7 +2749,7 @@ static int process_pkt(netif_t *src, const struct in6_addr *srca,
         }
         else {
             s->state = TCP_STATE_RESET | TCP_STATE_CLOSED;
-            __poll_event_trigger(s->sock, POLLHUP);
+            s->poll_pending |= POLLHUP;
             cond_signal(&s->data.recv_cv);
             cond_signal(&s->data.send_cv);
             return 0;
@@ -2791,7 +2788,7 @@ static int process_pkt(netif_t *src, const struct in6_addr *srca,
         s->data.sndbuf_acked += (int32_t)(ack - s->data.snd.una - acksyn);
         s->data.sndbuf_cur_sz -= (int32_t)(ack - s->data.snd.una - acksyn);
         s->data.snd.una = ack;
-        __poll_event_trigger(s->sock, POLLWRNORM | POLLWRBAND);
+        s->poll_pending |= (POLLWRNORM | POLLWRBAND);
         cond_signal(&s->data.send_cv);
 
         if(s->data.sndbuf_acked >= s->sndbuf_sz)
@@ -2872,28 +2869,70 @@ static int process_pkt(netif_t *src, const struct in6_addr *srca,
 
         /* Copy the data out */
         if(sz) {
-            rb = s->data.rcvbuf + s->data.rcvbuf_tail;
-            s->data.rcv.nxt += sz;
-            s->data.rcv.wnd -= sz;
-            s->data.rcvbuf_cur_sz += sz;
+            if(seq == s->data.rcv.nxt) {
+                /* --- In-order segment: deliver to app buffer --- */
+                rb = s->data.rcvbuf + s->data.rcvbuf_tail;
+                s->data.rcv.nxt += sz;
+                s->data.rcv.wnd -= sz;
+                s->data.rcvbuf_cur_sz += sz;
 
-            if(s->data.rcvbuf_tail + sz <= s->rcvbuf_sz) {
-                memcpy(rb, buf, sz);
-                s->data.rcvbuf_tail += sz;
-            }
-            else {
-                tmp = s->rcvbuf_sz - s->data.rcvbuf_tail;
-                memcpy(rb, buf, tmp);
-                sz -= tmp;
-                buf += tmp;
-                memcpy(s->data.rcvbuf, buf, sz);
-                s->data.rcvbuf_tail = sz;
-            }
+                if(s->data.rcvbuf_tail + sz <= s->rcvbuf_sz) {
+                    memcpy(rb, buf, sz);
+                    s->data.rcvbuf_tail += sz;
+                }
+                else {
+                    tmp = s->rcvbuf_sz - s->data.rcvbuf_tail;
+                    memcpy(rb, buf, tmp);
+                    memcpy(s->data.rcvbuf, buf + tmp, sz - tmp);
+                    s->data.rcvbuf_tail = sz - tmp;
+                }
 
-            /* Signal any waiting thread and send an ack for what we read */
-            __poll_event_trigger(s->sock, POLLRDNORM);
-            cond_signal(&s->data.recv_cv);
-            tcp_send_ack(s);
+                /* Check if buffered OOO segments are now contiguous */
+                uint32_t extra = 0;
+                if(s->data.ooo_count > 0) {
+                    extra = tcp_ooo_consume(s);
+                    if(extra) {
+                        /* Data already in buffer from when OOO arrived.
+                           Advance tail and cur_sz. rcv.wnd was already
+                           decremented when the OOO segment was buffered,
+                           and rcv.nxt was advanced by tcp_ooo_consume. */
+                        s->data.rcvbuf_cur_sz += extra;
+                        s->data.rcvbuf_tail =
+                            (s->data.rcvbuf_tail + extra) % s->rcvbuf_sz;
+                    }
+                }
+
+                s->poll_pending |= POLLRDNORM;
+                cond_signal(&s->data.recv_cv);
+
+                /* Delayed ACK: ACK every 2nd in-order segment to
+                   reduce TX load on the RX thread (each ACK TX takes
+                   ~150us during which RX is blocked, risking RTL8139
+                   buffer overflow). Pending ACKs are flushed by the
+                   10ms timer in tcp_thd_cb. Also ACK immediately
+                   after consuming OOO segments (big jump in rcv.nxt
+                   tells the sender to stop retransmitting). */
+                s->data.ack_pending++;
+                if(s->data.ack_pending >= 8 || extra > 0) {
+                    tcp_send_ack(s);
+                    s->data.ack_pending = 0;
+                }
+            }
+            else if(SEQ_GT(seq, s->data.rcv.nxt)) {
+                /* --- Out-of-order segment: buffer for reassembly --- */
+                if(tcp_ooo_add(s, seq, sz, buf) == 0) {
+                    /* Only shrink window if data was actually buffered.
+                       If table was full, data was dropped — don't account
+                       for phantom bytes or the app gets garbage later. */
+                    s->data.rcv.wnd -= sz;
+                }
+
+                /* Send dup ACK (with current rcv.nxt) so the sender
+                   can do fast retransmit after 3 dup ACKs. */
+                tcp_send_ack(s);
+            }
+            /* else: seq < rcv.nxt — duplicate/retransmit, ignore data.
+               The ACK sent for bad_pkt (if any) covers this. */
         }
     }
     else if(sz) {
@@ -2908,7 +2947,7 @@ static int process_pkt(netif_t *src, const struct in6_addr *srca,
         /* ACK the FIN */
         ++s->data.rcv.nxt;
         tcp_send_ack(s);
-        __poll_event_trigger(s->sock, POLLRDNORM);
+        s->poll_pending |= POLLRDNORM;
         cond_signal(&s->data.recv_cv);
 
         /* Do the various processing that needs to be done based on our state */
@@ -2942,7 +2981,7 @@ static int process_pkt(netif_t *src, const struct in6_addr *srca,
 }
 
 static int net_tcp_input(netif_t *src, int domain, const void *hdr,
-                         const uint8 *data, size_t size) {
+                         const uint8_t *data, size_t size) {
     struct in6_addr srca, dsta;
     const ip_hdr_t *ip4;
     const ipv6_hdr_t *ip6;
@@ -2951,6 +2990,8 @@ static int net_tcp_input(netif_t *src, int domain, const void *hdr,
     struct tcp_sock *s;
     int rv = -1;
     uint16_t c;
+    short poll_ev = 0;
+    file_t poll_fd = FILEHND_INVALID;
 
     switch(domain) {
         case AF_INET:
@@ -2990,14 +3031,8 @@ static int net_tcp_input(netif_t *src, int domain, const void *hdr,
 
     flags = ntohs(tcp->off_flags);
 
-    if(irq_inside_int()) {
-        if(rwsem_read_trylock(&tcp_sem)) {
-            return -1;
-        }
-    }
-    else {
-        rwsem_read_lock(&tcp_sem);
-    }
+    if(rwsem_read_lock_irqsafe(&tcp_sem))
+        return -1;
 
     /* Find a matching socket */
     if((s = find_sock(&srca, &dsta, tcp->src_port, tcp->dst_port, domain))) {
@@ -3035,10 +3070,20 @@ static int net_tcp_input(netif_t *src, int domain, const void *hdr,
                 break;
         }
 
+        poll_ev = s->poll_pending;
+        poll_fd = s->sock;
+        s->poll_pending = 0;
+
         mutex_unlock(&s->mutex);
     }
 
     rwsem_read_unlock(&tcp_sem);
+
+    /* Fire poll wakeups after releasing both locks: poll() takes tcp_sem
+       while holding its own mutex. The socket may be gone by now, so only
+       the copied values are used. */
+    if(poll_ev)
+        __poll_event_trigger(poll_fd, poll_ev);
 
     /* If we get in here, something went wrong... Send a RST. */
     if(rv && !(flags & TCP_FLAG_RST)) {
@@ -3048,16 +3093,14 @@ static int net_tcp_input(netif_t *src, int domain, const void *hdr,
     return 0;
 }
 
-static void tcp_thd_cb(void *arg) {
+static void net_tcp_job(workqueue_t *wq, workqueue_job_t *job) {
     struct tcp_sock *i, *tmp;
     uint64_t timer;
-
-    (void)arg;
 
     rwsem_read_lock(&tcp_sem);
 
     LIST_FOREACH(i, &tcp_socks, sock_list) {
-        mutex_lock(&i->mutex);
+        mutex_lock_scoped(&i->mutex);
         timer = timer_ms_gettime64();
 
         switch(i->state) {
@@ -3101,6 +3144,13 @@ static void tcp_thd_cb(void *arg) {
             case TCP_STATE_ESTABLISHED:
             case TCP_STATE_CLOSE_WAIT:
 
+                /* Flush pending delayed ACK. Without this, a single
+                   unACKed segment stalls the sender indefinitely. */
+                if(i->data.ack_pending > 0) {
+                    tcp_send_ack(i);
+                    i->data.ack_pending = 0;
+                }
+
                 if(i->data.sndbuf_cur_sz &&
                         i->data.timer + TCP_DEFAULT_RTTO <= timer) {
                     tcp_send_data(i, 1);
@@ -3116,12 +3166,24 @@ static void tcp_thd_cb(void *arg) {
 
                     tcp_send_fin_ack(i);
                     ++i->data.snd.nxt;
+                    i->data.timer = timer;
                 }
 
                 break;
-        }
 
-        mutex_unlock(&i->mutex);
+            case TCP_STATE_FIN_WAIT_1:
+            case TCP_STATE_FIN_WAIT_2:
+            case TCP_STATE_CLOSING:
+            case TCP_STATE_LAST_ACK:
+
+                /* Don't keep a closed socket forever if the peer never
+                   finishes closing the connection. */
+                if((i->intflags & TCP_IFLAG_CANBEDEL) &&
+                        i->data.timer + 2 * TCP_DEFAULT_MSL <= timer)
+                    tcp_abort(i);
+
+                break;
+        }
     }
 
     rwsem_read_unlock(&tcp_sem);
@@ -3149,6 +3211,10 @@ static void tcp_thd_cb(void *arg) {
     }
 
     rwsem_write_unlock(&tcp_sem);
+
+    /* Reprogram the workqueue job */
+    job->time_ms = timer_ms_gettime64() + TCP_POLL_PERIOD_MS;
+    workqueue_enqueue(wq, job);
 }
 
 /* Protocol handler for fs_socket. */
@@ -3170,27 +3236,30 @@ static fs_socket_proto_t proto = {
     net_tcp_getsockopt,                 /* getsockopt */
     net_tcp_setsockopt,                 /* setsockopt */
     net_tcp_getsockname,                /* getsockname */
+    net_tcp_getpeername,                /* getpeername */
     net_tcp_fcntl,                      /* fcntl */
     net_tcp_poll                        /* poll */
 };
 
+static workqueue_job_t net_tcp_wq_job = {
+    .cb = net_tcp_job,
+};
+
 int net_tcp_init(void) {
-    if((thd_cb_id = net_thd_add_callback(tcp_thd_cb, NULL, 50)) < 0)
-        return -1;
+    net_tcp_wq_job.time_ms = timer_ms_gettime64() + TCP_POLL_PERIOD_MS;
+    workqueue_enqueue(net_wq, &net_tcp_wq_job);
 
     return fs_socket_proto_add(&proto);
 }
 
 void net_tcp_shutdown(void) {
     struct tcp_sock *i, *tmp;
-    int old;
 
-    /* Kill the thread and make sure we can grab the lock */
-    if(thd_cb_id >= 0)
-        net_thd_del_callback(thd_cb_id);
+    /* Cancel the job and make sure we can grab the lock */
+    workqueue_cancel(net_wq, &net_tcp_wq_job);
 
     /* Disable IRQs so we can kill the sockets in peace... */
-    old = irq_disable();
+    irq_disable_scoped();
 
     /* Clean up existing sockets */
     i = LIST_FIRST(&tcp_socks);
@@ -3198,7 +3267,7 @@ void net_tcp_shutdown(void) {
     while(i) {
         tmp = LIST_NEXT(i, sock_list);
 
-        if(i->sock != -1) {
+        if(i->sock != FILEHND_INVALID) {
             close(i->sock);
         }
         else {
@@ -3218,6 +3287,4 @@ void net_tcp_shutdown(void) {
 
     /* Remove us from fs_socket and clean up the semaphore */
     fs_socket_proto_remove(&proto);
-
-    irq_restore(old);
 }

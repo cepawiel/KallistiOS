@@ -17,7 +17,6 @@
 #include <kos/genwait.h>
 #include <sys/queue.h>
 #include <kos/fs_socket.h>
-#include <arch/irq.h>
 #include <sys/socket.h>
 #include <netinet/udp.h>
 #include <netinet/udplite.h>
@@ -33,20 +32,18 @@
 /* Default hop limit (or ttl for IPv4) for new sockets */
 #define UDP_DEFAULT_HOPS    64
 
-#define packed __attribute__((packed))
 typedef struct {
-    uint16 src_port    packed;
-    uint16 dst_port    packed;
-    uint16 length      packed;
-    uint16 checksum    packed;
+    uint16_t src_port __packed;
+    uint16_t dst_port __packed;
+    uint16_t length __packed;
+    uint16_t checksum __packed;
 } udp_hdr_t;
-#undef packed
 
 struct udp_pkt {
     TAILQ_ENTRY(udp_pkt) pkt_queue;
     struct sockaddr_in6 from;
-    uint8 *data;
-    uint16 datasize;
+    uint8_t *data;
+    uint16_t datasize;
 };
 
 TAILQ_HEAD(udp_pkt_queue, udp_pkt);
@@ -59,11 +56,12 @@ struct udp_sock {
     struct sockaddr_in6 local_addr;
     struct sockaddr_in6 remote_addr;
 
-    uint32 flags;
-    uint32 int_flags;
+    uint32_t flags;
+    uint32_t int_flags;
     int domain;
     int proto;
     int hop_limit;
+    int tos;
     file_t sock;
 
     struct {
@@ -81,8 +79,8 @@ static mutex_t udp_mutex = MUTEX_INITIALIZER;
 static net_udp_stats_t udp_stats = { 0 };
 
 static int net_udp_send_raw(netif_t *net, const struct sockaddr_in6 *src,
-                            const struct sockaddr_in6 *dst, const uint8 *data,
-                            size_t size, uint32_t flags, int hops,
+                            const struct sockaddr_in6 *dst, const uint8_t *data,
+                            size_t size, uint32_t flags, int hops, int tos,
                             uint32_t iflags, int proto, uint16_t cscov);
 
 static int net_udp_accept(net_socket_t *hnd, struct sockaddr *addr,
@@ -146,15 +144,8 @@ static int net_udp_bind(net_socket_t *hnd, const struct sockaddr *addr,
             return -1;
     }
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     udpsock = (struct udp_sock *)hnd->data;
 
@@ -190,7 +181,7 @@ static int net_udp_bind(net_socket_t *hnd, const struct sockaddr *addr,
         udpsock->local_addr = realaddr6;
     }
     else {
-        uint16 port = 1024, tmp = 0;
+        uint16_t port = 1024, tmp = 0;
 
         /* Grab the first unused port >= 1024. This is, unfortunately, O(n^2) */
         while(tmp != port) {
@@ -265,15 +256,8 @@ static int net_udp_connect(net_socket_t *hnd, const struct sockaddr *addr,
             return -1;
     }
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     udpsock = (struct udp_sock *)hnd->data;
 
@@ -327,15 +311,8 @@ static ssize_t net_udp_recvfrom(net_socket_t *hnd, void *buffer, size_t length,
     struct udp_sock *udpsock;
     struct udp_pkt *pkt;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     udpsock = (struct udp_sock *)hnd->data;
 
@@ -366,7 +343,7 @@ static ssize_t net_udp_recvfrom(net_socket_t *hnd, void *buffer, size_t length,
 
     while(TAILQ_EMPTY(&udpsock->packets)) {
         mutex_unlock(&udp_mutex);
-        genwait_wait(udpsock, "net_udp_recvfrom", 0, NULL);
+        genwait_wait(udpsock, "net_udp_recvfrom", 0);
         mutex_lock(&udp_mutex);
     }
 
@@ -435,21 +412,14 @@ static ssize_t net_udp_sendto(net_socket_t *hnd, const void *message,
     struct sockaddr_in *realaddr;
     struct sockaddr_in6 realaddr6;
     uint32_t sflags, iflags;
-    int hops, proto;
+    int hops, proto, tos;
     uint16_t cscov;
     struct sockaddr_in6 local_addr;
 
     (void)flags;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     udpsock = (struct udp_sock *)hnd->data;
 
@@ -514,7 +484,7 @@ static ssize_t net_udp_sendto(net_socket_t *hnd, const void *message,
     }
 
     if(udpsock->local_addr.sin6_port == 0) {
-        uint16 port = 1024, tmp = 0;
+        uint16_t port = 1024, tmp = 0;
         struct udp_sock *iter;
 
         /* Grab the first unused port >= 1024. This is, unfortunately, O(n^2) */
@@ -537,11 +507,12 @@ static ssize_t net_udp_sendto(net_socket_t *hnd, const void *message,
     iflags = udpsock->int_flags;
     hops = udpsock->hop_limit;
     proto = udpsock->proto;
+    tos = udpsock->tos;
     cscov = udpsock->udp_lite.send_cscov;
     mutex_unlock(&udp_mutex);
 
     return net_udp_send_raw(NULL, &local_addr, &realaddr6,
-                            (const uint8 *)message, length, sflags, hops,
+                            (const uint8_t *)message, length, sflags, hops, tos,
                             iflags, proto, cscov);
 err:
     mutex_unlock(&udp_mutex);
@@ -551,15 +522,8 @@ err:
 static int net_udp_shutdownsock(net_socket_t *hnd, int how) {
     struct udp_sock *udpsock;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     udpsock = (struct udp_sock *)hnd->data;
 
@@ -610,15 +574,9 @@ static int net_udp_socket(net_socket_t *hnd, int domain, int type, int proto) {
     udpsock->proto = proto;
     udpsock->hop_limit = UDP_DEFAULT_HOPS;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            free(udpsock);
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
+    if(mutex_lock_irqsafe(&udp_mutex)) {
+        free(udpsock);
+        return -1;
     }
 
     LIST_INSERT_HEAD(&net_udp_sockets, udpsock, sock_list);
@@ -633,15 +591,8 @@ static void net_udp_close(net_socket_t *hnd) {
     struct udp_pkt *pkt;
     struct udp_pkt *it;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return;
 
     udpsock = (struct udp_sock *)hnd->data;
 
@@ -672,15 +623,8 @@ static int net_udp_getsockopt(net_socket_t *hnd, int level, int option_name,
     struct udp_sock *sock;
     int tmp;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     if(!(sock = (struct udp_sock *)hnd->data)) {
         mutex_unlock(&udp_mutex);
@@ -709,6 +653,9 @@ static int net_udp_getsockopt(net_socket_t *hnd, int level, int option_name,
             switch(option_name) {
                 case IP_TTL:
                     tmp = sock->hop_limit;
+                    goto copy_int;
+                case IP_TOS:
+                    tmp = sock->tos;
                     goto copy_int;
             }
 
@@ -793,15 +740,8 @@ static int net_udp_setsockopt(net_socket_t *hnd, int level, int option_name,
     struct udp_sock *sock;
     int tmp;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     if(!(sock = (struct udp_sock *)hnd->data)) {
         mutex_unlock(&udp_mutex);
@@ -837,6 +777,19 @@ static int net_udp_setsockopt(net_socket_t *hnd, int level, int option_name,
                         sock->hop_limit = UDP_DEFAULT_HOPS;
                     else
                         sock->hop_limit = tmp;
+
+                    goto ret_success;
+
+                case IP_TOS:
+                    if(option_len != sizeof(int))
+                        goto ret_inval;
+
+                    tmp = *((int *)option_value);
+
+                    if(tmp < 0 || tmp > 255)
+                        goto ret_inval;
+                    else
+                        sock->tos = tmp;
 
                     goto ret_success;
             }
@@ -968,15 +921,8 @@ static int net_udp_getsockname(net_socket_t *hnd, struct sockaddr *name,
         return -1;
     }
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     if(!(sock = (struct udp_sock *)hnd->data)) {
         mutex_unlock(&udp_mutex);
@@ -1029,20 +975,83 @@ ret_success:
     return 0;
 }
 
+static int net_udp_getpeername(net_socket_t *hnd, struct sockaddr *name, socklen_t *name_len) {
+    struct udp_sock *sock;
+    struct sockaddr_in realaddr;
+    struct sockaddr_in6 realaddr6;
+
+    if(!name || !name_len) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    if(mutex_lock_irqsafe(&udp_mutex)) {
+        errno = EWOULDBLOCK;
+        return -1;
+    }
+
+    if(!(sock = (struct udp_sock *)hnd->data)) {
+        mutex_unlock(&udp_mutex);
+        errno = EBADF;
+        return -1;
+    }
+
+    /* If the socket is not connected, return an error */
+    if(IN6_IS_ADDR_UNSPECIFIED(&sock->remote_addr.sin6_addr) || sock->remote_addr.sin6_port == 0) {
+        mutex_unlock(&udp_mutex);
+        errno = ENOTCONN;
+        return -1;
+    }
+
+    /* Depending on the socket domain, return the appropriate address structure */
+    if(sock->domain == AF_INET) {
+        memset(&realaddr, 0, sizeof(struct sockaddr_in));
+        realaddr.sin_family = AF_INET;
+        realaddr.sin_addr.s_addr = sock->remote_addr.sin6_addr.__s6_addr.__s6_addr32[3];
+        realaddr.sin_port = sock->remote_addr.sin6_port;
+
+        if(*name_len <= sizeof(struct sockaddr_in)) {
+            /* Passed in a structure not big enough so truncate*/
+            memcpy(name, &realaddr, *name_len);
+            errno = ENOBUFS;
+        } else {
+            memcpy(name, &realaddr, sizeof(struct sockaddr_in));
+            *name_len = sizeof(struct sockaddr_in);
+            goto ret_success;
+        }
+    } else if(sock->domain == AF_INET6) {
+        memset(&realaddr6, 0, sizeof(struct sockaddr_in6));
+        realaddr6.sin6_family = AF_INET6;
+        realaddr6.sin6_addr = sock->remote_addr.sin6_addr;
+        realaddr6.sin6_port = sock->remote_addr.sin6_port;
+
+        if(*name_len <= sizeof(struct sockaddr_in6)) {
+            /* Passed in a structure not big enough */
+            memcpy(name, &realaddr6, *name_len);
+            errno = ENOBUFS;
+        } else {
+            memcpy(name, &realaddr6, sizeof(struct sockaddr_in6));
+            *name_len = sizeof(struct sockaddr_in6);
+            goto ret_success;
+        }
+    }
+
+    mutex_unlock(&udp_mutex);
+    errno = ENOTSOCK;
+    return -1;
+
+ret_success:
+    mutex_unlock(&udp_mutex);
+    return 0;
+}
+
 static int net_udp_fcntl(net_socket_t *hnd, int cmd, va_list ap) {
     struct udp_sock *sock;
     long val;
     int rv = -1;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return -1;
 
     if(!(sock = (struct udp_sock *)hnd->data)) {
         mutex_unlock(&udp_mutex);
@@ -1087,13 +1096,8 @@ static short net_udp_poll(net_socket_t *hnd, short events) {
     struct udp_sock *sock;
     short rv = POLLWRNORM;
 
-    if(irq_inside_int()) {
-        if(mutex_trylock(&udp_mutex) == -1)
-            return 0;
-    }
-    else {
-        mutex_lock(&udp_mutex);
-    }
+    if(mutex_lock_irqsafe(&udp_mutex))
+        return 0;
 
     if(!(sock = (struct udp_sock *)hnd->data)) {
         mutex_unlock(&udp_mutex);
@@ -1110,10 +1114,10 @@ static short net_udp_poll(net_socket_t *hnd, short events) {
 
 extern void __poll_event_trigger(int fd, short event);
 
-static int net_udp_input4(netif_t *src, const ip_hdr_t *ip, const uint8 *data,
+static int net_udp_input4(netif_t *src, const ip_hdr_t *ip, const uint8_t *data,
                           size_t size) {
     udp_hdr_t *hdr = (udp_hdr_t *)data;
-    uint16 cs, cscov = 0;
+    uint16_t cs, cscov = 0;
     int partial = 1;
     struct udp_sock *sock;
     struct udp_pkt *pkt;
@@ -1169,9 +1173,8 @@ static int net_udp_input4(netif_t *src, const ip_hdr_t *ip, const uint8 *data,
         }
     }
 
-    if(mutex_trylock(&udp_mutex))
-        /* Considering this function is usually called in an IRQ, if the
-           mutex is locked, there isn't much that can be done. */
+    if(mutex_lock_irqsafe(&udp_mutex))
+        /* If the mutex is locked, there isn't much that can be done. */
         return -1;
 
     LIST_FOREACH(sock, &net_udp_sockets, sock_list) {
@@ -1221,7 +1224,7 @@ static int net_udp_input4(netif_t *src, const ip_hdr_t *ip, const uint8 *data,
 
         pkt->datasize = size - sizeof(udp_hdr_t);
 
-        if(!(pkt->data = (uint8 *)malloc(pkt->datasize))) {
+        if(!(pkt->data = (uint8_t *)malloc(pkt->datasize))) {
             free(pkt);
             mutex_unlock(&udp_mutex);
             return -1;
@@ -1237,9 +1240,13 @@ static int net_udp_input4(netif_t *src, const ip_hdr_t *ip, const uint8 *data,
         TAILQ_INSERT_TAIL(&sock->packets, pkt, pkt_queue);
 
         ++udp_stats.pkt_recv;
-        __poll_event_trigger(sock->sock, POLLRDNORM);
         genwait_wake_one(sock);
+
+        /* Fire poll wakeups after releasing udp_mutex to avoid the
+           poll-mutex / udp_mutex ABBA deadlock. */
+        file_t poll_fd = sock->sock;
         mutex_unlock(&udp_mutex);
+        __poll_event_trigger(poll_fd, POLLRDNORM);
 
         return 0;
     }
@@ -1250,10 +1257,10 @@ static int net_udp_input4(netif_t *src, const ip_hdr_t *ip, const uint8 *data,
     return -1;
 }
 
-static int net_udp_input6(netif_t *src, const ipv6_hdr_t *ip, const uint8 *data,
+static int net_udp_input6(netif_t *src, const ipv6_hdr_t *ip, const uint8_t *data,
                           size_t size) {
     udp_hdr_t *hdr = (udp_hdr_t *)data;
-    uint16 cs, cscov = 0;
+    uint16_t cs, cscov = 0;
     int partial = 1;
     struct udp_sock *sock;
     struct udp_pkt *pkt;
@@ -1307,9 +1314,8 @@ static int net_udp_input6(netif_t *src, const ipv6_hdr_t *ip, const uint8 *data,
         }
     }
 
-    if(mutex_trylock(&udp_mutex))
-        /* Considering this function is usually called in an IRQ, if the
-           mutex is locked, there isn't much that can be done. */
+    if(mutex_lock_irqsafe(&udp_mutex))
+        /* If the mutex is locked, there isn't much that can be done. */
         return -1;
 
     LIST_FOREACH(sock, &net_udp_sockets, sock_list) {
@@ -1359,7 +1365,7 @@ static int net_udp_input6(netif_t *src, const ipv6_hdr_t *ip, const uint8 *data,
 
         pkt->datasize = size - sizeof(udp_hdr_t);
 
-        if(!(pkt->data = (uint8 *)malloc(pkt->datasize))) {
+        if(!(pkt->data = (uint8_t *)malloc(pkt->datasize))) {
             free(pkt);
             mutex_unlock(&udp_mutex);
             return -1;
@@ -1374,9 +1380,13 @@ static int net_udp_input6(netif_t *src, const ipv6_hdr_t *ip, const uint8 *data,
         TAILQ_INSERT_TAIL(&sock->packets, pkt, pkt_queue);
 
         ++udp_stats.pkt_recv;
-        __poll_event_trigger(sock->sock, POLLRDNORM);
         genwait_wake_one(sock);
+
+        /* Fire poll wakeups after releasing udp_mutex to avoid the
+           poll-mutex / udp_mutex ABBA deadlock. */
+        file_t poll_fd = sock->sock;
         mutex_unlock(&udp_mutex);
+        __poll_event_trigger(poll_fd, POLLRDNORM);
 
         return 0;
     }
@@ -1388,7 +1398,7 @@ static int net_udp_input6(netif_t *src, const ipv6_hdr_t *ip, const uint8 *data,
 }
 
 static int net_udp_input(netif_t *src, int domain, const void *hdr,
-                         const uint8 *data, size_t size) {
+                         const uint8_t *data, size_t size) {
     switch(domain) {
         case AF_INET:
             return net_udp_input4(src, (const ip_hdr_t *)hdr, data, size);
@@ -1402,12 +1412,12 @@ static int net_udp_input(netif_t *src, int domain, const void *hdr,
 
 /* XXX */
 static int net_udp_send_raw(netif_t *net, const struct sockaddr_in6 *src,
-                            const struct sockaddr_in6 *dst, const uint8 *data,
-                            size_t size, uint32_t flags, int hops,
+                            const struct sockaddr_in6 *dst, const uint8_t *data,
+                            size_t size, uint32_t flags, int hops, int tos,
                             uint32_t iflags, int proto, uint16_t cscov) {
-    uint8 buf[size + sizeof(udp_hdr_t)];
+    uint8_t buf[size + sizeof(udp_hdr_t)];
     udp_hdr_t *hdr = (udp_hdr_t *)buf;
-    uint16 cs;
+    uint16_t cs;
     int err;
     struct in6_addr srcaddr = src->sin6_addr;
 
@@ -1480,7 +1490,7 @@ static int net_udp_send_raw(netif_t *net, const struct sockaddr_in6 *src,
     }
 
     /* Pass everything off to the network layer to do the rest. */
-    err = net_ipv6_send(net, buf, size, hops, proto, &srcaddr,
+    err = net_ipv6_send(net, buf, size, hops, tos, proto, &srcaddr,
                         &dst->sin6_addr);
 
     if(err < 0) {
@@ -1516,6 +1526,7 @@ static fs_socket_proto_t proto = {
     net_udp_getsockopt,
     net_udp_setsockopt,
     net_udp_getsockname,
+    net_udp_getpeername,
     net_udp_fcntl,
     net_udp_poll
 };
@@ -1538,6 +1549,7 @@ static fs_socket_proto_t proto_lite = {
     net_udp_getsockopt,
     net_udp_setsockopt,
     net_udp_getsockname,
+    net_udp_getpeername,
     net_udp_fcntl,
     net_udp_poll
 };

@@ -8,8 +8,18 @@
  */
 
 #include <kos.h>
+
+/* Allow both old kos-ports location and standard */
+#if __has_include("png/png.h")
 #include <png/png.h>
+#else
+#include <png.h>
+#endif
+#if __has_include("zlib/zlib.h")
 #include <zlib/zlib.h>
+#else
+#include <zlib.h>
+#endif
 
 /* font data */
 extern char wfont[];
@@ -30,7 +40,7 @@ void back_init(void) {
 /* init font */
 void font_init(void) {
     int i, x, y, c;
-    unsigned short temp_tex[256 * 128 * 2];
+    static unsigned short temp_tex[256 * 128 * 2];
 
     font_tex = pvr_mem_malloc(256 * 256 * 2);
 
@@ -97,7 +107,7 @@ void draw_back(void) {
     vert.v = 0.0f;
     pvr_prim(&vert, sizeof(vert));
 
-    vert.x = 1.0f;
+    vert.x = 0.0f;
     vert.y = 480.0f;
     vert.z = 1.0f;
     vert.u = 0.0f;
@@ -184,7 +194,6 @@ int y = 0;
 
 /* draw one frame */
 void draw_frame(void) {
-    pvr_wait_ready();
     pvr_scene_begin();
 
     pvr_list_begin(PVR_LIST_OP_POLY);

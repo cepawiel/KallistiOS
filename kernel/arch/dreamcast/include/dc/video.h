@@ -24,7 +24,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
 /** \defgroup video_display Display
@@ -107,15 +107,21 @@ typedef enum vid_display_mode_generic {
 */
 #define DM_MULTIBUFFER  0x2000
 
-//-----------------------------------------------------------------------------
-// More specific modes (and actual indices into the mode table)
+/** \brief  Default video mode. */
+#define DEFAULT_VID_MODE    DM_640x480
 
-/** \brief   Specific Display Modes 
+/** \brief  Default pixel mode for video. */
+#define DEFAULT_PIXEL_MODE  PM_RGB565
+
+/* ------------------------------------------------------------------------- */
+/* More specific modes (and actual indices into the mode table) */
+
+/** \brief   Specific Display Modes
     \ingroup video_modes_display
 */
 typedef enum vid_display_mode {
     DM_INVALID = 0,                 /**< \brief Invalid display mode */
-    // Valid modes below
+    /* Valid modes below */
     DM_320x240_VGA = 1,             /**< \brief 320x240 VGA 60Hz */
     DM_320x240_NTSC,                /**< \brief 320x240 NTSC 60Hz */
     DM_640x480_VGA,                 /**< \brief 640x480 VGA 60Hz */
@@ -126,12 +132,11 @@ typedef enum vid_display_mode {
     DM_768x576_PAL_IL,              /**< \brief 768x576 PAL Interlaced 50Hz */
     DM_768x480_PAL_IL,              /**< \brief 768x480 PAL Interlaced 50Hz */
     DM_320x240_PAL,                 /**< \brief 320x240 PAL 50Hz */
-    // The below is only for counting..
+    /* The below is only for counting.. */
     DM_SENTINEL,                    /**< \brief Sentinel value, for counting */
     DM_MODE_COUNT                   /**< \brief Number of modes */
 } vid_display_mode_t;
 
-// These are for the "flags" field of "vid_mode_t"
 /** \defgroup vid_flags Flags
     \brief              vid_mode_t Field Flags
     \ingroup            video_modes
@@ -160,7 +165,7 @@ typedef struct vid_mode {
     uint16_t  height;     /**< \brief Height of the display, in pixels */
     uint32_t  flags;      /**< \brief Combination of one or more VID_* flags */
 
-    int16_t   cable_type; /**< \brief Allowed cable type */
+    int8_t    cable_type; /**< \brief Allowed cable type */
     vid_pixel_mode_t  pm; /**< \brief Pixel mode */
 
     uint16_t  scanlines;  /**< \brief Number of scanlines */
@@ -181,34 +186,35 @@ typedef struct vid_mode {
     size_t  fb_size;      /**< \brief Size of each framebuffer */
 } vid_mode_t;
 
-/** \brief   The list of builtin video modes. Do not modify these! 
+/** \brief   The list of builtin video modes. Do not modify these!
     \ingroup video_modes
 */
 extern vid_mode_t vid_builtin[DM_MODE_COUNT];
 
-/** \brief   The current video mode. Do not modify directly! 
-    \ingroup video_modes 
+/** \brief   The current video mode. Do not modify directly!
+    \ingroup video_modes
 */
 extern vid_mode_t *vid_mode;
 
-// These point to the current drawing area. If you're not using a multi-buffered
-// mode, that means they do what KOS always used to do (they'll point at the
-// start of VRAM). If you're using a multi-buffered mode, they'll point at the
-// next framebuffer to be displayed. You must use vid_flip for this to work
-// though (if you use vid_set_start, they'll point at the display base, for
-// compatibility's sake).
+/*  These point to the current drawing area. If you're not using a multi-buffered
+    mode, that means they do what KOS always used to do (they'll point at the
+    start of VRAM). If you're using a multi-buffered mode, they'll point at the
+    next framebuffer to be displayed. You must use vid_flip for this to work
+    though (if you use vid_set_start, they'll point at the display base, for
+    compatibility's sake).
+*/
 
 /** \defgroup video_fb Framebuffer
     \brief             API for framebuffer management
     \ingroup           video_display
 */
 
-/** \brief   16-bit size pointer to the current drawing area. 
+/** \brief   16-bit size pointer to the current drawing area.
     \ingroup video_fb
 */
 extern uint16_t *vram_s;
 
-/** \brief   32-bit size pointer to the current drawing area. 
+/** \brief   32-bit size pointer to the current drawing area.
     \ingroup video_fb
 */
 extern uint32_t *vram_l;
@@ -286,7 +292,7 @@ void vid_flip(int32_t fb);
 /** \brief   Set the border color of the display.
     \ingroup video_display
 
-    This sets the color of the border area of the display. 
+    This sets the color of the border area of the display.
 
     \note
     On some screens, the border area may not be shown at all,
@@ -295,7 +301,7 @@ void vid_flip(int32_t fb);
     \param  r               The red value of the color (0-255).
     \param  g               The green value of the color (0-255).
     \param  b               The blue value of the color (0-255).
-    
+
     \return                 Old border color value (RGB888)
 */
 uint32_t vid_border_color(uint8_t r, uint8_t g, uint8_t b);
@@ -307,7 +313,7 @@ uint32_t vid_border_color(uint8_t r, uint8_t g, uint8_t b);
     this uses the store queues to actually clear the display entirely.
 
     \note
-    This operates via the vram convenience pointers. In multibuffered mode, 
+    This operates via the vram convenience pointers. In multibuffered mode,
     by default it will clear the framebuffer you are currently writing to
     rather than the one being displayed.
 
@@ -318,7 +324,7 @@ uint32_t vid_border_color(uint8_t r, uint8_t g, uint8_t b);
 void vid_clear(uint8_t r, uint8_t g, uint8_t b);
 
 /** \brief   Clear VRAM.
-    \ingroup video_vram
+    \ingroup video_fb
 
     This function is essentially a memset() for the whole of VRAM that will
     clear it all to 0 bytes.
@@ -418,9 +424,32 @@ void vid_shutdown(void);
     \param  destfn          The filename to save to.
     \return                 0 on success, <0 on failure.
 */
-int vid_screen_shot(const char * destfn);
+int vid_screen_shot(const char *destfn);
+
+/** \brief   Create image data from the current framebuffer.
+    \ingroup video_fb
+
+    This function takes the current framebuffer (/vram_l) and converts it into
+    24bpp image data. The function allocates memory for the image data, which
+    the caller is responsible for freeing.
+
+    \param  buffer          A pointer to a uint8_t* that will be allocated and
+                            filled with the image data.
+    \return                 The size of the created image data in bytes, or 0 on failure.
+*/
+size_t vid_screen_shot_data(uint8_t **buffer);
+
+/** \brief   Enable or disable dithering.
+    \ingroup video_fb
+
+    This function can be used to enable or disable dithering when a 15-bit or
+    16-bit video mode is used.
+
+    \param  enable          Whether or not dithering should be enabled.
+*/
+void vid_set_dithering(bool enable);
 
 __END_DECLS
 
-#endif  // __DC_VIDEO_H
+#endif  /* __DC_VIDEO_H */
 

@@ -3,7 +3,7 @@
    dc/sound/stream.h
    Copyright (C) 2002, 2004 Megan Potter
    Copyright (C) 2020 Lawrence Sebald
-   Copyright (C) 2023 Ruslan Rostovtsev
+   Copyright (C) 2023, 2024 Ruslan Rostovtsev
 
 */
 
@@ -25,10 +25,10 @@
 #ifndef __DC_SOUND_STREAM_H
 #define __DC_SOUND_STREAM_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
-#include <arch/types.h>
+#include <stdint.h>
 
 /** \defgroup audio_streaming   Streaming
     \brief                      Streaming audio playback and management
@@ -39,8 +39,18 @@ __BEGIN_DECLS
 /** \brief  The maximum number of streams that can be allocated at once. */
 #define SND_STREAM_MAX 4
 
-/** \brief  The maximum buffer size for a stream. */
-#define SND_STREAM_BUFFER_MAX 0x10000
+/** \brief  The maximum buffer size for each channel of PCM 16-bit stream. */
+#define SND_STREAM_BUFFER_MAX_PCM16 (128 << 10)
+
+/** \brief  The maximum buffer size for each channel of PCM 8-bit stream. */
+#define SND_STREAM_BUFFER_MAX_PCM8  (64 << 10)
+
+/** \brief  The maximum buffer size for each channel of ADPCM stream. */
+#define SND_STREAM_BUFFER_MAX_ADPCM ((32 << 10) - 64)
+
+/** \brief  The maximum buffer size for each channel of streams by default
+            and for backward compatibility. */
+#define SND_STREAM_BUFFER_MAX       (64 << 10)
 
 /** \brief  Stream handle type.
 
@@ -71,6 +81,21 @@ typedef int snd_stream_hnd_t;
 typedef void *(*snd_stream_callback_t)(snd_stream_hnd_t hnd, int smp_req,
                                        int *smp_recv);
 
+/** \brief  Direct stream data transfer callback type.
+
+    Functions for providing stream data will be of this type, and can be
+    registered with snd_stream_set_callback_direct().
+
+    \param  hnd             The stream handle being referred to.
+    \param  left            Left channel buffer address on AICA side.
+    \param  right           Right channel buffer address on AICA side.
+    \param  size_req        Requested size for each channel.
+    \retval -1              On failure.
+    \retval size_recv       On success, received size.
+*/
+typedef size_t (*snd_stream_callback_direct_t)(snd_stream_hnd_t hnd,
+    uintptr_t left,  uintptr_t right,  size_t size_req);
+
 /** \brief  Set the callback for a given stream.
 
     This function sets the get data callback function for a given stream,
@@ -80,6 +105,16 @@ typedef void *(*snd_stream_callback_t)(snd_stream_hnd_t hnd, int smp_req,
     \param  cb              A pointer to the callback function.
 */
 void snd_stream_set_callback(snd_stream_hnd_t hnd, snd_stream_callback_t cb);
+
+/** \brief  Set the callback for a given stream with direct transfer.
+
+    This function sets the get data callback function for a given stream,
+    overwriting any old callback that may have been in place.
+
+    \param  hnd             The stream handle for the callback.
+    \param  cb              A pointer to the callback function.
+*/
+void snd_stream_set_callback_direct(snd_stream_hnd_t hnd, snd_stream_callback_direct_t cb);
 
 /** \brief  Set the user data for a given stream.
 
@@ -155,14 +190,14 @@ void snd_stream_filter_remove(snd_stream_hnd_t hnd,
                               snd_stream_filter_t filtfunc, void *obj);
 
 /** \brief  Prefill the stream buffers.
+    \deprecated This function has no effect and should be removed.
 
-    This function prefills the stream buffers before starting it. This is
-    implicitly called by snd_stream_start(), so there's probably no good reason
-    to call this yourself.
+    This function has no effect. The stream is prefilled on start.
+    This is deprecated and should be removed if used.
 
-    \param  hnd             The stream to prefill buffers on.
 */
-void snd_stream_prefill(snd_stream_hnd_t hnd);
+static const int __snd_stream_prefill   __depr("snd_stream_prefill has no effect and should be removed") = 0;
+#define snd_stream_prefill(x)  ((void)__snd_stream_prefill)
 
 /** \brief  Initialize the stream system.
 
@@ -177,6 +212,19 @@ void snd_stream_prefill(snd_stream_hnd_t hnd);
 */
 int snd_stream_init(void);
 
+/** \brief  Initialize the stream system with limits.
+
+    The same as \ref snd_stream_init but it can either reduce or not allocate
+    the buffer for splitting the stereo stream at all.
+
+    \param  channels        Max channels for any streams.
+    \param  buffer_size     Max channel buffer size for any streams.
+
+    \retval -1              On failure.
+    \retval 0               On success.
+*/
+int snd_stream_init_ex(int channels, size_t buffer_size);
+
 /** \brief  Shut down the stream system.
 
     This function shuts down the stream system and frees the memory associated
@@ -189,7 +237,7 @@ void snd_stream_shutdown(void);
     This function allocates a stream and sets its parameters.
 
     \param  cb              The get data callback for the stream.
-    \param  bufsize         The size of the buffer for the stream.
+    \param  bufsize         The size of the buffer for each channel of the stream.
     \return                 A handle to the new stream on success,
                             SND_STREAM_INVALID on failure.
 */
@@ -253,7 +301,7 @@ void snd_stream_queue_go(snd_stream_hnd_t hnd);
     \param  freq            The frequency of the sound.
     \param  st              1 if the sound is stereo, 0 if mono.
 */
-void snd_stream_start(snd_stream_hnd_t hnd, uint32 freq, int st);
+void snd_stream_start(snd_stream_hnd_t hnd, uint32_t freq, int st);
 
 /** \brief  Start a 8-bit PCM stream.
 
@@ -264,7 +312,7 @@ void snd_stream_start(snd_stream_hnd_t hnd, uint32 freq, int st);
     \param  freq            The frequency of the sound.
     \param  st              1 if the sound is stereo, 0 if mono.
 */
-void snd_stream_start_pcm8(snd_stream_hnd_t hnd, uint32 freq, int st);
+void snd_stream_start_pcm8(snd_stream_hnd_t hnd, uint32_t freq, int st);
 
 /** \brief  Start a 4-bit ADPCM stream.
 
@@ -275,7 +323,7 @@ void snd_stream_start_pcm8(snd_stream_hnd_t hnd, uint32 freq, int st);
     \param  freq            The frequency of the sound.
     \param  st              1 if the sound is stereo, 0 if mono.
 */
-void snd_stream_start_adpcm(snd_stream_hnd_t hnd, uint32 freq, int st);
+void snd_stream_start_adpcm(snd_stream_hnd_t hnd, uint32_t freq, int st);
 
 /** \brief  Stop a stream.
 
@@ -308,6 +356,16 @@ int snd_stream_poll(snd_stream_hnd_t hnd);
     \param  vol             The volume to set. Valid values are 0-255.
 */
 void snd_stream_volume(snd_stream_hnd_t hnd, int vol);
+
+/** \brief  Set the panning on the stream.
+
+    This function sets the panning of the specified stream.
+
+    \param  hnd             The stream to set volume on.
+    \param  left_pan        The left panning to set. Valid values are 0-255.
+    \param  right_pan       The right panning to set. Valid values are 0-255.
+*/
+void snd_stream_pan(snd_stream_hnd_t hnd, int left_pan, int right_pan);
 
 /** @} */
 

@@ -2,6 +2,8 @@
 
    aica.c
    (c)2000-2002 Megan Potter
+   (c)2024 Stefanos Kornilios Mitsis Poiitidis
+   (c)2026 Ruslan Rostovtsev
 
    ARM support routines for using the wavetable channels
 */
@@ -10,13 +12,26 @@
 #include "aica.h"
 
 extern volatile aica_channel_t *chans;
+extern void arm_fiq_enable(void);
 
 void aica_init(void) {
     int i, j;
 
-    /* Initialize AICA channels */
-    SNDREG32(0x2800) = 0x0000;
+    /* SCIEB/MCIEB: mask all interrupt sources during setup. */
+    SNDREG32(0x289C) = 0;
+    SNDREG32(0x28B4) = 0;
+    /* SCIRE/MCIRE: acknowledge pending Sound/Main CPU interrupts. */
+    SNDREG32(0x28A4) = 0x7FF;
+    SNDREG32(0x28BC) = 0x7FF;
+    /* SCILV0/1/2: deliver AICA events on FIQ (used by fiq_timer in crt0.s). */
+    SNDREG32(0x28A8) = 0x18;
+    SNDREG32(0x28AC) = 0x50;
+    SNDREG32(0x28B0) = 0x08;
 
+    /* Drop master volume while channel registers are cleared. */
+    SNDREG8(0x2800) = 0;
+
+    /* Initialize AICA channels */
     for(i = 0; i < 64; i++) {
         CHNREG32(i, 0) = 0x8000;
 
@@ -26,35 +41,48 @@ void aica_init(void) {
         CHNREG32(i, 20) = 0x1f;
     }
 
-    SNDREG32(0x2800) = 0x000f;
+    /* Restore default mixer routing after channel reset. */
+    SNDREG8(0x2800) = 0x0f;
+    /* Timer A reload (same as crt0.s). */
+    SNDREG32(0x2890) = 256 - (44100 / 4410);
+    /* SCIEB bit 6: unmask Timer A as the sole FIQ source. */
+    SNDREG32(0x289C) = 0x40;
+
+    /* Unmask FIQ in CPSR once Timer A and SCILV are configured. */
+    arm_fiq_enable();
 }
 
 /* Translates a volume from linear form to logarithmic form (required by
-   the AICA chip */
-static int logs[] = {
-    0, 15, 22, 27, 31, 35, 39, 42, 45, 47, 50, 52, 55, 57, 59, 61,
-    63, 65, 67, 69, 71, 73, 74, 76, 78, 79, 81, 82, 84, 85, 87, 88,
-    90, 91, 92, 94, 95, 96, 98, 99, 100, 102, 103, 104, 105, 106,
-    108, 109, 110, 111, 112, 113, 114, 116, 117, 118, 119, 120, 121,
-    122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134,
-    135, 136, 137, 138, 138, 139, 140, 141, 142, 143, 144, 145, 146,
-    146, 147, 148, 149, 150, 151, 152, 152, 153, 154, 155, 156, 156,
-    157, 158, 159, 160, 160, 161, 162, 163, 164, 164, 165, 166, 167,
-    167, 168, 169, 170, 170, 171, 172, 173, 173, 174, 175, 176, 176,
-    177, 178, 178, 179, 180, 181, 181, 182, 183, 183, 184, 185, 185,
-    186, 187, 187, 188, 189, 189, 190, 191, 191, 192, 193, 193, 194,
-    195, 195, 196, 197, 197, 198, 199, 199, 200, 200, 201, 202, 202,
-    203, 204, 204, 205, 205, 206, 207, 207, 208, 209, 209, 210, 210,
-    211, 212, 212, 213, 213, 214, 215, 215, 216, 216, 217, 217, 218,
-    219, 219, 220, 220, 221, 221, 222, 223, 223, 224, 224, 225, 225,
-    226, 227, 227, 228, 228, 229, 229, 230, 230, 231, 232, 232, 233,
-    233, 234, 234, 235, 235, 236, 236, 237, 237, 238, 239, 239, 240,
-    240, 241, 241, 242, 242, 243, 243, 244, 244, 245, 245, 246, 246,
-    247, 247, 248, 248, 249, 249, 250, 250, 251, 251, 252, 252, 253, 254, 255
+   the AICA chip
+
+    Calculated by
+        for(int i = 0; i < 256; i++)
+            if(i == 0)
+                logs[i] = 255;
+            else
+                logs[i] = 16.0 * log2(255.0 / i);
+   */
+static uint8 logs[] = {
+    255, 127, 111, 102, 95, 90, 86, 82, 79, 77, 74, 72, 70, 68, 66, 65,
+    63, 62, 61, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 50, 49, 48,
+    47, 47, 46, 45, 45, 44, 43, 43, 42, 42, 41, 41, 40, 40, 39, 39,
+    38, 38, 37, 37, 36, 36, 35, 35, 34, 34, 34, 33, 33, 33, 32, 32,
+    31, 31, 31, 30, 30, 30, 29, 29, 29, 28, 28, 28, 27, 27, 27, 27,
+    26, 26, 26, 25, 25, 25, 25, 24, 24, 24, 24, 23, 23, 23, 23, 22,
+    22, 22, 22, 21, 21, 21, 21, 20, 20, 20, 20, 20, 19, 19, 19, 19,
+    18, 18, 18, 18, 18, 17, 17, 17, 17, 17, 17, 16, 16, 16, 16, 16,
+    15, 15, 15, 15, 15, 15, 14, 14, 14, 14, 14, 14, 13, 13, 13, 13,
+    13, 13, 12, 12, 12, 12, 12, 12, 11, 11, 11, 11, 11, 11, 11, 10,
+    10, 10, 10, 10, 10, 10, 9, 9, 9, 9, 9, 9, 9, 8, 8, 8,
+    8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 7, 7, 7, 6, 6, 6,
+    6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4,
+    4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-static inline int calc_aica_vol(int x) {
-    return 0xff - logs[x & 0xff];
+static inline uint8 calc_aica_vol(uint8 x) {
+    return logs[x];
 }
 
 static inline int calc_aica_pan(int x) {

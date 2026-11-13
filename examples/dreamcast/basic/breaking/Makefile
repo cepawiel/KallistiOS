@@ -9,9 +9,9 @@ OBJS = breaking.o
 KOS_CFLAGS += -std=gnu2x -Wno-strict-aliasing
 KOS_GCCVER_MIN = 13.0.0
 
-all: rm-elf $(TARGET)
-
 include $(KOS_BASE)/Makefile.rules
+
+all: rm-elf $(TARGET)
 
 clean: rm-elf
 	-rm -f $(OBJS)

@@ -25,11 +25,10 @@
 #ifndef __KOS_FS_SOCKET_H
 #define __KOS_FS_SOCKET_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 
 __BEGIN_DECLS
 
-#include <arch/types.h>
 #include <kos/fs.h>
 #include <kos/net.h>
 #include <sys/queue.h>
@@ -274,7 +273,7 @@ typedef struct fs_socket_proto {
         \retval -1          On error (the packet is discarded)
         \retval 0           On success
     */
-    int (*input)(netif_t *src, int domain, const void *hdr, const uint8 *data,
+    int (*input)(netif_t *src, int domain, const void *hdr, const uint8_t *data,
                  size_t size);
 
     /** \brief  Get socket options.
@@ -325,16 +324,33 @@ typedef struct fs_socket_proto {
         Currently all options (regardless of level) are passed onto the
         protocol handler.
 
-        \param  s               The socket to get the name of.
-        \param  name            Pointer to a sockaddr structure which will hold
-                                the resulting address information.
-        \param  name_len        The amount of space pointed to by name, in
-                                bytes. On return, this is set to the actual size
-                                of the returned address information.
-        \retval -1              On error (set errno appropriately).
-        \retval 0               On success.
+        \param  s           The socket to get the name of.
+        \param  name        Pointer to a sockaddr structure which will hold
+                            the resulting address information.
+        \param  name_len    The amount of space pointed to by name, in
+                            bytes. On return, this is set to the actual size
+                            of the returned address information.
+        \retval -1          On error (with errno set appropriately).
+        \retval 0           On success.
     */
     int (*getsockname)(net_socket_t *s, struct sockaddr *name, socklen_t *name_len);
+
+        /** \brief  Get the name of the peer connected to a socket created with the
+                    protocol.
+
+        This function should implement the ::getpeername() system call for the
+        protocol. The semantics are exactly as expected for that function.
+
+        \param  s           The socket from which to get the peer address.
+        \param  name        Pointer to a sockaddr structure which will hold
+                            the resulting address information.
+        \param  name_len    The amount of space pointed to by name, in
+                            bytes. On return, this is set to the actual size
+                            of the returned address information.
+        \retval -1          On error (with errno set appropriately).
+        \retval 0           On success.
+    */
+    int (*getpeername)(net_socket_t *s, struct sockaddr *name, socklen_t *name_len);
 
     /** \brief  Manipulate file options.
 
@@ -363,7 +379,7 @@ typedef struct fs_socket_proto {
     short (*poll)(net_socket_t *s, short events);
 } fs_socket_proto_t;
 
-/** \brief   Initializer for the entry field in the fs_socket_proto_t struct. 
+/** \brief   Initializer for the entry field in the fs_socket_proto_t struct.
     \ingroup vfs_sockets
 */
 #define FS_SOCKET_PROTO_ENTRY { NULL, NULL }
@@ -431,7 +447,7 @@ net_socket_t *fs_socket_open_sock(fs_socket_proto_t *proto);
     \retval 0           On success
 */
 int fs_socket_input(netif_t *src, int domain, int protocol, const void *hdr,
-                    const uint8 *data, size_t size);
+                    const uint8_t *data, size_t size);
 
 /** \brief   Add a new protocol for use with fs_socket.
     \ingroup vfs_sockets
@@ -445,7 +461,7 @@ int fs_socket_input(netif_t *src, int domain, int protocol, const void *hdr,
     This function is NOT safe to call inside an interrupt.
 
     \param  proto       The new protocol handler to register
-    
+
     \retval 0           On success (no error conditions are currently defined)
 */
 int fs_socket_proto_add(fs_socket_proto_t *proto);
@@ -454,7 +470,7 @@ int fs_socket_proto_add(fs_socket_proto_t *proto);
     \ingroup vfs_sockets
 
     This function does the exact opposite of fs_socket_proto_add, and removes
-    a protocol from use with fs_socket. 
+    a protocol from use with fs_socket.
 
     \note
     It is the programmer's responsibility to make sure that no sockets are
@@ -462,7 +478,7 @@ int fs_socket_proto_add(fs_socket_proto_t *proto);
     they will not work properly once the handler has been removed).
 
     \param  proto       The protocol handler to remove
-    
+
     \retval -1          On error (This function does not directly change errno)
     \retval 0           On success
 */

@@ -8,13 +8,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <malloc.h>
 #include <errno.h>
-#include <arch/types.h>
+
 #include <kos/mutex.h>
 #include <kos/fs_null.h>
 #include <sys/queue.h>
-#include <errno.h>
 
 /* File handles */
 typedef struct null_fh_str {
@@ -34,7 +32,13 @@ static null_fh_t *null_open_file(vfs_handler_t *vfs, const char *fn, int mode) {
     (void) vfs;
     (void) fn;
 
-    null_fh_t    * fd;       /* file descriptor */
+    null_fh_t *fd;       /* file descriptor */
+
+    /* This is a special file, not a directory */
+    if(mode & O_DIR) {
+        errno = ENOTDIR;
+        return NULL;
+    }
 
     /* Malloc a new fh struct */
     fd = malloc(sizeof(null_fh_t));
@@ -50,33 +54,31 @@ static null_fh_t *null_open_file(vfs_handler_t *vfs, const char *fn, int mode) {
 }
 
 /* open function */
-static void * null_open(vfs_handler_t *vfs, const char *path, int mode) {
+static void *null_open(vfs_handler_t *vfs, const char *path, int mode) {
     null_fh_t *fh = null_open_file(vfs, path, mode);
     if(!fh) {
         return NULL;
     }
 
     /* link the fh onto the top of the list */
-    mutex_lock(&fh_mutex);
+    mutex_lock_scoped(&fh_mutex);
     TAILQ_INSERT_TAIL(&null_fh, fh, listent);
-    mutex_unlock(&fh_mutex);
 
     return (void *)fh;
 }
 
 /* Verify that a given hnd is actually in the list */
 static int null_verify_hnd(void *hnd) {
-    null_fh_t    *cur;
-    int     rv = 0;
+    null_fh_t *cur;
+    int rv = 0;
 
-    mutex_lock(&fh_mutex);
+    mutex_lock_scoped(&fh_mutex);
     TAILQ_FOREACH(cur, &null_fh, listent) {
         if((void *)cur == hnd) {
             rv = 1;
             break;
         }
     }
-    mutex_unlock(&fh_mutex);
 
     return rv;
 }
@@ -106,7 +108,7 @@ static int null_close(void *hnd) {
 static ssize_t null_read(void *hnd, void *buffer, size_t cnt) {
     (void)buffer;
     (void)cnt;
-    
+
     null_fh_t *fh;
 
     /* Check the handle */
@@ -128,7 +130,7 @@ static ssize_t null_read(void *hnd, void *buffer, size_t cnt) {
 static ssize_t null_write(void *hnd, const void *buffer, size_t cnt) {
     (void) buffer;
 
-    null_fh_t    *fh;
+    null_fh_t *fh;
 
     /* Check the handle */
     if(!null_verify_hnd(hnd)) {
@@ -176,14 +178,13 @@ static size_t null_total(void *fd) {
     return 0;
 }
 
-static int null_stat(vfs_handler_t *vfs, const char *fn, struct stat *rv,
-                    int flag) {
+static int null_stat(vfs_handler_t *vfs, const char *fn, struct stat *rv, int flag) {
     (void)vfs;
     (void)fn;
     (void)flag;
 
     memset(rv, 0, sizeof(struct stat));
-    rv->st_mode = S_IFCHR | S_IRUSR;
+    rv->st_mode = S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
     rv->st_nlink = 1;
 
     return 0;
@@ -198,7 +199,7 @@ static int null_fstat(void *fd, struct stat *st) {
     }
 
     memset(st, 0, sizeof(struct stat));
-    st->st_mode = S_IFCHR | S_IRUSR;
+    st->st_mode =  S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
     st->st_nlink = 1;
 
     return 0;
@@ -245,32 +246,26 @@ static vfs_handler_t vh = {
     null_fstat
 };
 
-int fs_null_init(void) {
-    int rv = 0;
+void fs_null_init(void) {
     TAILQ_INIT(&null_fh);
     mutex_init(&fh_mutex, MUTEX_TYPE_NORMAL);
 
     nmmgr_handler_add(&vh.nmmgr);
-
-    return rv;
 }
 
-int fs_null_shutdown(void) {
-    null_fh_t * c, * n;
+void fs_null_shutdown(void) {
+    null_fh_t *c, *n;
+
+    mutex_lock(&fh_mutex);
 
     /* First, clean up any open files */
-    c = TAILQ_FIRST(&null_fh);
-
-    while(c) {
-        n = TAILQ_NEXT(c, listent);
+    TAILQ_FOREACH_SAFE(c, &null_fh, listent, n) {
         free(c);
-        c = n;
     }
 
+    mutex_unlock(&fh_mutex);
     mutex_destroy(&fh_mutex);
 
     nmmgr_handler_remove(&vh.nmmgr);
-
-    return 0;
 }
 

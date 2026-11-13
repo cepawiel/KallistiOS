@@ -3,7 +3,7 @@
    dc/maple/controller.h
    Copyright (C) 2000-2002 Jordan DeLong
    Copyright (C) 2000-2002 Megan Potter
-   Copyright (C) 2023 Falco Girgis
+   Copyright (C) 2023, 2025 Falco Girgis
 
    Thanks to Marcus Comstedt for information on the controller.
 */
@@ -24,11 +24,11 @@
 #ifndef __DC_MAPLE_CONTROLLER_H
 #define __DC_MAPLE_CONTROLLER_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
-#include <arch/types.h>
 #include <stdint.h>
+#include <kos/regfield.h>
 
 /** \defgroup controller Controller
     \brief    Controller Maple Device API
@@ -57,7 +57,7 @@ __BEGIN_DECLS
                             \/      |        \/
                                Start button
 
-   You can grab a pointer to a connected controller by 
+   You can grab a pointer to a connected controller by
    using the following:
 
         maple_device_t *device = maple_enum_type(N, MAPLE_FUNC_CONTROLLER);
@@ -65,7 +65,7 @@ __BEGIN_DECLS
         if(device) printf("Controller found!\n");
         else printf("Controller not found!\n");
 
-    where N is the controller number. 0 would be the first 
+    where N is the controller number. 0 would be the first
     controller found, which may not necessarily be on port A.
 */
 
@@ -83,7 +83,7 @@ __BEGIN_DECLS
     Next you can check for the state of a particular button with:
 
         if(state->a)                // Check via bitfield
-            printf("Pressed A".);
+            printf("Pressed A.");
 
     or
 
@@ -94,33 +94,33 @@ __BEGIN_DECLS
 /** \defgroup controller_input_masks Inputs
     \brief    Collection of all status masks for checking input
     \ingroup  controller_inputs
-  
+
     A set of bitmasks representing each input source on a controller, used to
     check its status.
 
     @{
 */
-#define CONT_C              (1<<0)      /**< \brief C button Mask. */
-#define CONT_B              (1<<1)      /**< \brief B button Mask. */
-#define CONT_A              (1<<2)      /**< \brief A button Mask. */
-#define CONT_START          (1<<3)      /**< \brief Start button Mask. */
-#define CONT_DPAD_UP        (1<<4)      /**< \brief Main Dpad Up button Mask. */
-#define CONT_DPAD_DOWN      (1<<5)      /**< \brief Main Dpad Down button Mask. */
-#define CONT_DPAD_LEFT      (1<<6)      /**< \brief Main Dpad Left button Mask. */
-#define CONT_DPAD_RIGHT     (1<<7)      /**< \brief Main Dpad right button Mask. */
-#define CONT_Z              (1<<8)      /**< \brief Z button Mask. */
-#define CONT_Y              (1<<9)      /**< \brief Y button Mask. */
-#define CONT_X              (1<<10)     /**< \brief X button Mask. */
-#define CONT_D              (1<<11)     /**< \brief D button Mask. */
-#define CONT_DPAD2_UP       (1<<12)     /**< \brief Secondary Dpad Up button Mask. */
-#define CONT_DPAD2_DOWN     (1<<13)     /**< \brief Secondary Dpad Down button Mask. */
-#define CONT_DPAD2_LEFT     (1<<14)     /**< \brief Secondary Dpad Left button Mask. */
-#define CONT_DPAD2_RIGHT    (1<<15)     /**< \brief Secondary Dpad Right button Mask. */
+#define CONT_C              BIT(0)      /**< \brief C button Mask. */
+#define CONT_B              BIT(1)      /**< \brief B button Mask. */
+#define CONT_A              BIT(2)      /**< \brief A button Mask. */
+#define CONT_START          BIT(3)      /**< \brief Start button Mask. */
+#define CONT_DPAD_UP        BIT(4)      /**< \brief Main Dpad Up button Mask. */
+#define CONT_DPAD_DOWN      BIT(5)      /**< \brief Main Dpad Down button Mask. */
+#define CONT_DPAD_LEFT      BIT(6)      /**< \brief Main Dpad Left button Mask. */
+#define CONT_DPAD_RIGHT     BIT(7)      /**< \brief Main Dpad right button Mask. */
+#define CONT_Z              BIT(8)      /**< \brief Z button Mask. */
+#define CONT_Y              BIT(9)      /**< \brief Y button Mask. */
+#define CONT_X              BIT(10)     /**< \brief X button Mask. */
+#define CONT_D              BIT(11)     /**< \brief D button Mask. */
+#define CONT_DPAD2_UP       BIT(12)     /**< \brief Secondary Dpad Up button Mask. */
+#define CONT_DPAD2_DOWN     BIT(13)     /**< \brief Secondary Dpad Down button Mask. */
+#define CONT_DPAD2_LEFT     BIT(14)     /**< \brief Secondary Dpad Left button Mask. */
+#define CONT_DPAD2_RIGHT    BIT(15)     /**< \brief Secondary Dpad Right button Mask. */
 /** @} */
 
 /** \brief   Controller buttons for standard reset action
     \ingroup controller_inputs
-    
+
     Convenience macro providing the standard button combination
     used as a reset mechanism by most retail games.
 */
@@ -185,10 +185,6 @@ typedef struct cont_state {
     used, for instance, to implement the standard A+B+X+Y+Start method of ending
     the program running.
 
-    \warning
-    Your callback will be invoked within a context with interrupts disabled.
-    See cont_btn_callback for more information.
-
     \param addr             Maple BUS address to poll for the button mask
                             on, or 0 for all ports.
     \param btns             Mask of all buttons which should be pressed to
@@ -204,35 +200,30 @@ typedef void (*cont_btn_callback_t)(uint8_t addr, uint32_t btns);
     This function sets a callback function to be called when the specified
     controller has the set of buttons given pressed.
 
-    \note 
+    \note
     The callback gets invoked for the given maple port; however, providing
-    an address of '0' will cause it to be invoked for any port with a 
-    device pressing the given buttons. Since you are passed back the address 
+    an address of '0' will cause it to be invoked for any port with a
+    device pressing the given buttons. Since you are passed back the address
     of this device, You are free to implement your own filtering logic within
-    your callback.
+    your callback. Any callback with addr==0 will be installed to the end of
+    the list of callbacks and will run after callbacks with the same btns but
+    a specified address.
 
-    \warning
-    The provided callback function is invoked within a context which has
-    interrupts disabled. This means that you should not do any sort of complex
-    processing or make any API calls which depend on interrupts to complete,
-    such as Maple or ethernet processing whichy rely on packet transmission,
-    any sleeping or threading calls, blocking on any sort of file I/O, etc. 
-    This mechanism is typically used to quickly terminate the application
-    and should be used with caution.
-
-    \param  addr            The controller to listen on (or 0 for all ports). 
+    \param  addr            The controller to listen on (or 0 for all ports).
                             This value can be obtained by using maple_addr().
     \param  btns            The buttons bitmask to match.
     \param  cb              The callback to call when the buttons are pressed.
+                            Passing NULL will uninstall all callbacks on the
+                            addr/btns combination.
 */
-void cont_btn_callback(uint8_t addr, uint32_t btns, cont_btn_callback_t cb);
+int cont_btn_callback(uint8_t addr, uint32_t btns, cont_btn_callback_t cb);
 
 /** \defgroup controller_query_caps Querying Capabilities
     \brief    API used to query for a controller's capabilities
     \ingroup  controller
-    
-    The following API is used to query for the support of individual 
-    or groups of capabilities by a particular device.  
+
+    The following API is used to query for the support of individual
+    or groups of capabilities by a particular device.
 */
 
 /** \defgroup controller_caps Capabilities
@@ -243,40 +234,40 @@ void cont_btn_callback(uint8_t addr, uint32_t btns, cont_btn_callback_t cb);
     if the controller supports the corresponding button/axis capability.
 
     \note
-    The ordering here is so that they match the order found in 
+    The ordering here is so that they match the order found in
     \ref controller_input_masks.
 
     @{
 */
-#define CONT_CAPABILITY_C               (1<<24)     /**< \brief C button capability mask. */
-#define CONT_CAPABILITY_B               (1<<25)     /**< \brief B button capability mask. */
-#define CONT_CAPABILITY_A               (1<<26)     /**< \brief A button capability mask. */
-#define CONT_CAPABILITY_START           (1<<27)     /**< \brief Start button capability mask. */
-#define CONT_CAPABILITY_DPAD_UP         (1<<28)     /**< \brief First Dpad up capability mask. */
-#define CONT_CAPABILITY_DPAD_DOWN       (1<<29)     /**< \brief First Dpad down capability mask. */
-#define CONT_CAPABILITY_DPAD_LEFT       (1<<30)     /**< \brief First Dpad left capability mask. */
-#define CONT_CAPABILITY_DPAD_RIGHT      (1<<31)     /**< \brief First Dpad right capability mask. */
-#define CONT_CAPABILITY_Z               (1<<16)     /**< \brief Z button capability mask. */
-#define CONT_CAPABILITY_Y               (1<<17)     /**< \brief Y button capability mask. */
-#define CONT_CAPABILITY_X               (1<<18)     /**< \brief X button capability mask. */
-#define CONT_CAPABILITY_D               (1<<19)     /**< \brief D button capability mask. */
-#define CONT_CAPABILITY_DPAD2_UP        (1<<20)     /**< \brief Second Dpad up capability mask. */
-#define CONT_CAPABILITY_DPAD2_DOWN      (1<<21)     /**< \brief Second Dpad down capability mask. */
-#define CONT_CAPABILITY_DPAD2_LEFT      (1<<22)     /**< \brief Second Dpad left capability mask. */
-#define CONT_CAPABILITY_DPAD2_RIGHT     (1<<23)     /**< \brief Second Dpad right capability mask. */
-#define CONT_CAPABILITY_RTRIG           (1<<8)      /**< \brief Right trigger capability mask. */
-#define CONT_CAPABILITY_LTRIG           (1<<9)      /**< \brief Left trigger capability mask. */
-#define CONT_CAPABILITY_ANALOG_X        (1<<10)     /**< \brief First analog X axis capability mask. */
-#define CONT_CAPABILITY_ANALOG_Y        (1<<11)     /**< \brief First analog Y axis capability mask. */
-#define CONT_CAPABILITY_ANALOG2_X       (1<<12)     /**< \brief Second analog X axis capability mask. */
-#define CONT_CAPABILITY_ANALOG2_Y       (1<<13)     /**< \brief Second analog Y axis capability mask. */
+#define CONT_CAPABILITY_C               BIT(24)     /**< \brief C button capability mask. */
+#define CONT_CAPABILITY_B               BIT(25)     /**< \brief B button capability mask. */
+#define CONT_CAPABILITY_A               BIT(26)     /**< \brief A button capability mask. */
+#define CONT_CAPABILITY_START           BIT(27)     /**< \brief Start button capability mask. */
+#define CONT_CAPABILITY_DPAD_UP         BIT(28)     /**< \brief First Dpad up capability mask. */
+#define CONT_CAPABILITY_DPAD_DOWN       BIT(29)     /**< \brief First Dpad down capability mask. */
+#define CONT_CAPABILITY_DPAD_LEFT       BIT(30)     /**< \brief First Dpad left capability mask. */
+#define CONT_CAPABILITY_DPAD_RIGHT      BIT(31)     /**< \brief First Dpad right capability mask. */
+#define CONT_CAPABILITY_Z               BIT(16)     /**< \brief Z button capability mask. */
+#define CONT_CAPABILITY_Y               BIT(17)     /**< \brief Y button capability mask. */
+#define CONT_CAPABILITY_X               BIT(18)     /**< \brief X button capability mask. */
+#define CONT_CAPABILITY_D               BIT(19)     /**< \brief D button capability mask. */
+#define CONT_CAPABILITY_DPAD2_UP        BIT(20)     /**< \brief Second Dpad up capability mask. */
+#define CONT_CAPABILITY_DPAD2_DOWN      BIT(21)     /**< \brief Second Dpad down capability mask. */
+#define CONT_CAPABILITY_DPAD2_LEFT      BIT(22)     /**< \brief Second Dpad left capability mask. */
+#define CONT_CAPABILITY_DPAD2_RIGHT     BIT(23)     /**< \brief Second Dpad right capability mask. */
+#define CONT_CAPABILITY_RTRIG           BIT(8)      /**< \brief Right trigger capability mask. */
+#define CONT_CAPABILITY_LTRIG           BIT(9)      /**< \brief Left trigger capability mask. */
+#define CONT_CAPABILITY_ANALOG_X        BIT(10)     /**< \brief First analog X axis capability mask. */
+#define CONT_CAPABILITY_ANALOG_Y        BIT(11)     /**< \brief First analog Y axis capability mask. */
+#define CONT_CAPABILITY_ANALOG2_X       BIT(12)     /**< \brief Second analog X axis capability mask. */
+#define CONT_CAPABILITY_ANALOG2_Y       BIT(13)     /**< \brief Second analog Y axis capability mask. */
 /** @} */
 
 /** \defgroup controller_caps_groups Capability Groups
     \brief    Bit masks representing common groups of capabilities
     \ingroup  controller_query_caps
 
-    These are a sets of capabilities providing a 
+    These are a sets of capabilities providing a
     convenient way to test for high-level features,
     such as dual-analog sticks or extra buttons.
 
@@ -297,7 +288,7 @@ void cont_btn_callback(uint8_t addr, uint32_t btns, cont_btn_callback_t cb);
 
 /** \brief Analog stick (X, Y axes) controller capabilities */
 #define CONT_CAPABILITIES_ANALOG              (CONT_CAPABILITY_ANALOG_X | \
-                                               CONT_CAPABILITY_ANALOG_Y) 
+                                               CONT_CAPABILITY_ANALOG_Y)
 
 /** \brief Trigger (L, R lever) controller capabilities */
 #define CONT_CAPABILITIES_TRIGGERS            (CONT_CAPABILITY_LTRIG | \
@@ -331,28 +322,28 @@ struct maple_device;
 /** \brief   Check for controller capabilities
     \ingroup controller_query_caps
 
-    Checks whether or not a controller implements the capabilities 
-    associated with the given type. 
+    Checks whether or not a controller implements the capabilities
+    associated with the given type.
 
     \note
-    Controller capability reporting is an extremely generic mechanism, 
-    such that many peripherals may implement the same capability in 
-    completely different ways. For example, the Samba De Amigo maraca 
+    Controller capability reporting is an extremely generic mechanism,
+    such that many peripherals may implement the same capability in
+    completely different ways. For example, the Samba De Amigo maraca
     controller will advertise itself as a dual-analog device, with each
-    maraca being an analog stick. 
+    maraca being an analog stick.
 
     \param cont            Pointer to a Maple device structure which
-                           implements the CONTROLLER function.   
-    \param capabilities    Capability mask the controller is expected 
+                           implements the CONTROLLER function.
+    \param capabilities    Capability mask the controller is expected
                            to implement
 
     \retval 1              The controller supports the given capabilities.
     \retval 0              The controller doesn't support the given capabilities.
-    \retval -1             Invalid controller. 
+    \retval -1             Invalid controller.
 
     \sa cont_is_type
 */
-int cont_has_capabilities(const struct maple_device *cont, uint32_t capabilities);
+int __pure cont_has_capabilities(const struct maple_device *cont, uint32_t capabilities);
 /** @} */
 
 /** \defgroup controller_query_types Querying Types
@@ -362,22 +353,22 @@ int cont_has_capabilities(const struct maple_device *cont, uint32_t capabilities
     The following API is for detecting between different types
     of standard controllers. These controllers are not identified
     by specific model but are instead identified solely by capabilities,
-    so that homebrew software can remain generic and future-proof to later 
+    so that homebrew software can remain generic and future-proof to later
     homebrew controllers or exotic, untested 3rd party peripherals.
 
     \warning
-    Usually you want to check if a controller <i>supports the 
-    capabilities</i> of another controller, not whether it is has 
-    the <i>exact</i> same capabilities of a controller. For example, 
-    a controller that happens to come along supporting a dual analog 
-    stick but is otherwise the same layout as a standard controller 
-    would not match the standard controller type; however, it would 
-    implement its capabilities. There exist 3rd party adapters for 
-    connecting dual-analog PS2 controllers to DC which operate 
+    Usually you want to check if a controller <i>supports the
+    capabilities</i> of another controller, not whether it is has
+    the <i>exact</i> same capabilities of a controller. For example,
+    a controller that happens to come along supporting a dual analog
+    stick but is otherwise the same layout as a standard controller
+    would not match the standard controller type; however, it would
+    implement its capabilities. There exist 3rd party adapters for
+    connecting dual-analog PS2 controllers to DC which operate
     like this today.
 
     \note
-    If you really want to hard-code the detection of a certain 
+    If you really want to hard-code the detection of a certain
     exact model or brand of controller, instead of basing your
     detection upon capabilities, check for its product_name
     or license within the maple_devinfo structure.
@@ -389,7 +380,7 @@ int cont_has_capabilities(const struct maple_device *cont, uint32_t capabilities
     \brief    Preconfigured capabilities for standard controllers
     \ingroup  controller_query_types
 
-    Aggregate capability mask containing all capabilities 
+    Aggregate capability mask containing all capabilities
     which are implemented for a particular controller type.
     For example, the standard controller type is simply a
     combination of the following capabilities:
@@ -397,10 +388,10 @@ int cont_has_capabilities(const struct maple_device *cont, uint32_t capabilities
         - Triggers
         - Dpad
         - Analog
-    
+
     \note
     Because these are technically just capability masks,
-    a type may also be passed to cont_has_capabilities() 
+    a type may also be passed to cont_has_capabilities()
     for detecting whether something has <i>at least</i>
     the capabilities of a type.
 
@@ -480,35 +471,47 @@ int cont_has_capabilities(const struct maple_device *cont, uint32_t capabilities
                                              CONT_CAPABILITIES_EXTENDED_BUTTONS | \
                                              CONT_CAPABILITY_D | \
                                              CONT_CAPABILITIES_DPAD)
+
+/** \brief Madcatz PantherDC "Flight Stick + Trackball" controller type */
+#define CONT_TYPE_PANTHERDC                 (CONT_CAPABILITIES_STANDARD_BUTTONS | \
+                                             CONT_CAPABILITIES_EXTENDED_BUTTONS | \
+                                             CONT_CAPABILITY_D | \
+                                             CONT_CAPABILITIES_TRIGGERS | \
+                                             CONT_CAPABILITIES_DPAD | \
+                                             CONT_CAPABILITIES_DUAL_ANALOG)
+
+/** \brief Dreameye controller type */
+#define CONT_TYPE_DREAMEYE                  (CONT_CAPABILITY_D)
+
 /** @} */
 
 /** \brief   Check for controller type
     \ingroup controller_query_types
 
-    Checks whether or not a controller has the <i>exact</i> 
-    capabilities associated with the given type. 
+    Checks whether or not a controller has the <i>exact</i>
+    capabilities associated with the given type.
 
     \warning
-    Just because a controller has all of the same capabilities of a 
+    Just because a controller has all of the same capabilities of a
     type does not mean that it's that exact type. For example, the
     ASCII Pad and Arcade Stick both implement the same capabilities,
-    although they are not the same controllers. They would be 
-    indistinguishable here, by design, so that you are able to 
-    generalize to a collection of 1st or 3rd party controllers 
+    although they are not the same controllers. They would be
+    indistinguishable here, by design, so that you are able to
+    generalize to a collection of 1st or 3rd party controllers
     easily.
 
     \param cont            Pointer to a Maple device structure which
-                           implements the CONTROLLER function.   
+                           implements the CONTROLLER function.
     \param type            Type identifier or capability mask the
                            controller is expected to match
 
     \retval 1              The controller matches the given type.
     \retval 0              The controller doesn't match the given type.
-    \retval -1             Invalid controller. 
+    \retval -1             Invalid controller.
 
     \sa cont_has_capabilities
 */
-int cont_is_type(const struct maple_device *cont, uint32_t type);
+int __pure cont_is_type(const struct maple_device *cont, uint32_t type);
 
 /* \cond */
 /* Init / Shutdown */

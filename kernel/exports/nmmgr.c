@@ -17,9 +17,10 @@ interface at the front of their struct.
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+
 #include <kos/init_base.h>
 #include <kos/nmmgr.h>
 #include <kos/mutex.h>
@@ -34,12 +35,18 @@ static nmmgr_list_t nmmgr_handlers;
 
 /* Locate a name handler for a given path name */
 nmmgr_handler_t * nmmgr_lookup(const char *fn) {
-    nmmgr_handler_t *cur;
+    nmmgr_handler_t *cur = NULL, *tmp;
+    size_t          cur_len = 0, tmp_len;
 
-    /* Scan the handler table and look for a path match */
-    LIST_FOREACH(cur, &nmmgr_handlers, list_ent) {
-        if(!strncasecmp(cur->pathname, fn, strlen(cur->pathname)))
-            break;
+    /* Scan the handler table and look for the best path match */
+    SLIST_FOREACH(tmp, &nmmgr_handlers, list_ent) {
+        tmp_len = strlen(tmp->pathname);
+        if(!strncasecmp(tmp->pathname, fn, tmp_len)) {
+            if(cur_len < tmp_len) {
+                cur_len = tmp_len;
+                cur = tmp;
+            }
+        }
     }
 
     if(cur == NULL) {
@@ -63,7 +70,7 @@ nmmgr_list_t * nmmgr_get_list(void) {
 int nmmgr_handler_add(nmmgr_handler_t *hnd) {
     mutex_lock(&mutex);
 
-    LIST_INSERT_HEAD(&nmmgr_handlers, hnd, list_ent);
+    SLIST_INSERT_HEAD(&nmmgr_handlers, hnd, list_ent);
 
     mutex_unlock(&mutex);
 
@@ -72,22 +79,21 @@ int nmmgr_handler_add(nmmgr_handler_t *hnd) {
 
 /* Remove a name handler */
 int nmmgr_handler_remove(nmmgr_handler_t *hnd) {
-    nmmgr_handler_t *c, *tmp;
+    nmmgr_handler_t *tmp;
     int rv = -1;
 
-    /* If we're in an int, lets do the trylock */
-    if(irq_inside_int())
-        mutex_trylock(&mutex);
-    else
-        mutex_lock(&mutex);
+    if(mutex_lock_irqsafe(&mutex) < 0)
+        return -1;
 
     /* Verify that it's actually in there */
-    LIST_FOREACH_SAFE(c, &nmmgr_handlers, list_ent, tmp) {
-        if(c == hnd) {
-            LIST_REMOVE(hnd, list_ent);
-            rv = 0;
+    SLIST_FOREACH(tmp, &nmmgr_handlers, list_ent) {
+        if(tmp == hnd)
             break;
-        }
+    }
+
+    if(tmp) {
+        SLIST_REMOVE(&nmmgr_handlers, hnd, nmmgr_handler, list_ent);
+        rv = 0;
     }
 
     mutex_unlock(&mutex);
@@ -100,7 +106,7 @@ KOS_INIT_FLAG_WEAK(export_init, false);
 /* Initialize structures */
 void nmmgr_init(void) {
     /* Start with no handlers */
-    LIST_INIT(&nmmgr_handlers);
+    SLIST_INIT(&nmmgr_handlers);
 
     /* Initialize our internal exports */
     KOS_INIT_FLAG_CALL(export_init);
@@ -109,10 +115,10 @@ void nmmgr_init(void) {
 void nmmgr_shutdown(void) {
     nmmgr_handler_t *c, *n;
 
-    c = LIST_FIRST(&nmmgr_handlers);
+    c = SLIST_FIRST(&nmmgr_handlers);
 
     while(c != NULL) {
-        n = LIST_NEXT(c, list_ent);
+        n = SLIST_NEXT(c, list_ent);
 
         if(c->flags & NMMGR_FLAGS_NEEDSFREE)
             free(c);

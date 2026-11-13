@@ -9,26 +9,25 @@
 
 #include <errno.h>
 #include <stdint.h>
-#include <sys/reent.h>
+#include <reent.h>
 #include <sys/times.h>
-#include <arch/timer.h>
-#include <dc/perfctr.h>
+#include <kos/timer.h>
 
-int _times_r(struct _reent *re, struct tms *tmsbuf) {
+clock_t _times_r(struct _reent *re, struct tms *tmsbuf) {
     (void)re;
 
     if(tmsbuf) {
-        /*  User CPU Time:
-            Use performance counters when available. */
+        /*  User CPU Time: */
         const uint64_t precise_clock =
-            (perf_cntr_timer_enabled())?
-                (perf_cntr_timer_ns() / 1000) : 
-                 timer_us_gettime64();
+                  timer_us_gettime64();
 
         /* We have to protect against overflow. */
-        tmsbuf->tms_utime =
-            (precise_clock <= UINT32_MAX)?
-                precise_clock : (clock_t)-1;
+        if(precise_clock > UINT32_MAX) {
+            errno = EOVERFLOW;
+            return (clock_t)-1;
+        }
+
+        tmsbuf->tms_utime = precise_clock;
 
         /* System CPU Time: Unimplemented */
         tmsbuf->tms_stime = 0;
@@ -37,9 +36,9 @@ int _times_r(struct _reent *re, struct tms *tmsbuf) {
         /* Children System CPU Time: Unimplemented */
         tmsbuf->tms_cstime = 0;
 
-        return (int)tmsbuf->tms_utime;
+        return tmsbuf->tms_utime;
     }
 
-    re->_errno = EFAULT;
-    return -1;
+    errno = EFAULT;
+    return (clock_t)-1;
 }

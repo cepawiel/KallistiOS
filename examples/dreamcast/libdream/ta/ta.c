@@ -108,7 +108,7 @@ void draw_one_poly(polyplace_t *p) {
     pvr_prim(&vert, sizeof(vert));
 }
 
-uint32 color = 0;
+uint32_t color = 0;
 int dcolor = 5;
 void draw_frame(void) {
     pvr_poly_cxt_t  cxt;
@@ -131,7 +131,6 @@ void draw_frame(void) {
     }
 
     /* Start opaque poly list */
-    pvr_wait_ready();
     pvr_scene_begin();
     pvr_list_begin(PVR_LIST_OP_POLY);
 
@@ -155,7 +154,7 @@ void draw_frame(void) {
 /* Main program: init and loop drawing polygons */
 pvr_init_params_t pvr_params = {
     { PVR_BINSIZE_16, PVR_BINSIZE_0, PVR_BINSIZE_0, PVR_BINSIZE_0, PVR_BINSIZE_0 },
-    64 * 1024
+    64 * 1024, 0, 0, 0, 0, 0
 };
 int main(int argc, char **argv) {
     pvr_init(&pvr_params);

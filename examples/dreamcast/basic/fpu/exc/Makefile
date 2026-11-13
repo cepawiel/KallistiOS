@@ -6,11 +6,10 @@
 
 TARGET = fpu_exc.elf
 OBJS = fpu_exc.o
-KOS_GCCVER_MIN = 5.0.0
-
-all: rm-elf $(TARGET)
 
 include $(KOS_BASE)/Makefile.rules
+
+all: rm-elf $(TARGET)
 
 clean: rm-elf
 	-rm -f $(OBJS)
@@ -27,4 +26,3 @@ run: $(TARGET)
 dist: $(TARGET)
 	-rm -f $(OBJS)
 	$(KOS_STRIP) $(TARGET)
-

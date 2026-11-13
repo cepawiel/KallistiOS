@@ -1,7 +1,8 @@
 /* KallistiOS ##version##
 
    kos/exports.h
-   Copyright (C)2003 Megan Potter
+   Copyright (C) 2003 Megan Potter
+   Copyright (C) 2024 Ruslan Rostovtsev
 
 */
 
@@ -14,15 +15,16 @@
     be looked through using the functionality in this file.
 
     \author Megan Potter
+    \author Ruslan Rostovtsev
 */
 
 #ifndef __KOS_EXPORTS_H
 #define __KOS_EXPORTS_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
-#include <arch/types.h>
+#include <stdint.h>
 
 /** \addtogroup system_libraries
     @{
@@ -36,8 +38,8 @@ __BEGIN_DECLS
     \headerfile kos/exports.h
 */
 typedef struct export_sym {
-    const char  * name;     /**< \brief The name of the symbol. */
-    ptr_t       ptr;        /**< \brief A pointer to the symbol. */
+    const char *name;     /**< \brief The name of the symbol. */
+    uintptr_t ptr;        /**< \brief A pointer to the symbol. */
 } export_sym_t;
 
 /** \cond */
@@ -46,6 +48,9 @@ extern export_sym_t kernel_symtab[];
 
 /* And these are the arch-specific exports */
 extern export_sym_t arch_symtab[];
+
+/* And these are the subarch-specific exports */
+extern export_sym_t subarch_symtab[];
 /** \endcond */
 
 #ifndef __EXPORTS_FILE
@@ -55,8 +60,8 @@ extern export_sym_t arch_symtab[];
     \headerfile kos/exports.h
 */
 typedef struct symtab_handler {
-    struct nmmgr_handler nmmgr;     /**< \brief Name manager handler header */
-    export_sym_t         * table;   /**< \brief Location of the first entry */
+    struct nmmgr_handler nmmgr;   /**< \brief Name manager handler header */
+    export_sym_t *table;          /**< \brief Location of the first entry */
 } symtab_handler_t;
 #endif
 
@@ -67,11 +72,24 @@ void export_init(void);
     \param  name            The symbol to look up
     \return                 The export structure, or NULL on failure
 */
-export_sym_t * export_lookup(const char * name);
+export_sym_t *export_lookup(const char *name);
+
+/** \brief  Look up a symbol by name and Name Manager path.
+    \param  name            The symbol to look up
+    \param  path            The Name Manager path to look up
+    \return                 The export structure, or NULL on failure
+*/
+export_sym_t *export_lookup_path(const char *name, const char *path);
+
+/** \brief  Look up the nearest exported symbol at or before addr.
+            Useful for exception messages.
+    \param  addr            The address to look up
+    \return                 The export structure, or NULL on failure
+*/
+export_sym_t *export_lookup_addr(uintptr_t addr);
 
 /** @} */
 
 __END_DECLS
 
 #endif  /* __KOS_EXPORTS_H */
-

@@ -2,15 +2,19 @@
 
    dc/sd.h
    Copyright (C) 2012 Lawrence Sebald
+   Copyright (C) 2025 Ruslan Rostovtsev
 */
 
 /** \file    dc/sd.h
-    \brief   Block-level access to an SD card attached to the SCIF port.
+    \brief   Block-level access to an SD card attached to the SCI or SCIF port.
     \ingroup vfs_sd
 
-    This file contains the interface to working with the SD card reader that was
-    designed by jj1odm. The SD card reader itself connects to the SCIF port and
-    uses it basically as a simple SPI bus.
+    This file contains the interface to working with SD card readers.
+    The original SD card reader designed by jj1odm connects to the SCIF port,
+    while the SCI port implementation was developed by SWAT (Ruslan Rostovtsev).
+    The SCIF implementation uses bit-banging technique to emulate SPI protocol,
+    while the SCI implementation utilizes the synchronous mode of this interface,
+    which is very similar to SPI.
 
     For reference, all I/O through this code should be done in the order of SD
     card blocks (which are 512 bytes a piece). Also, this should adequately
@@ -37,18 +41,31 @@
 #ifndef __DC_SD_H
 #define __DC_SD_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
-#include <arch/types.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <kos/blockdev.h>
 
 /** \defgroup vfs_sd    SD Card
-    \brief              VFS driver for accessing SD cards over the SCIF port
+    \brief              VFS driver for accessing SD cards over the SCIF or SCI port
     \ingroup            vfs
 
     @{
 */
+
+/** \brief  SD card interface type */
+typedef enum {
+    SD_IF_SCIF = 0,    /**< Use SCIF interface */
+    SD_IF_SCI = 1      /**< Use SCI interface */
+} sd_interface_t;
+
+/** \brief  SD card initialization parameters */
+typedef struct {
+    sd_interface_t interface;  /**< Interface to use (SCIF or SCI) */
+    bool check_crc;           /**< Enable CRC checking (true) or disable (false) */
+} sd_init_params_t;
 
 /** \brief  Calculate a SD/MMC-style CRC over a block of data.
 
@@ -62,15 +79,26 @@ __BEGIN_DECLS
                             passing in a full block, this will probably be 0.
     \return                 The calculated CRC.
 */
-uint8 sd_crc7(const uint8 *data, int size, uint8 crc);
+uint8_t sd_crc7(const uint8_t *data, int size, uint8_t crc);
+
+/** \brief  Initialize the SD card with extended parameters.
+
+    This function initializes the SD card with specified parameters. This includes
+    all steps of the basic initialization sequence for SPI mode, as documented in
+    the SD card spec and at http://elm-chan.org/docs/mmc/mmc_e.html.
+
+    \param  params          Pointer to initialization parameters.
+    \retval 0               On success.
+    \retval -1              On failure. This could indicate any number of
+                            problems, but probably means that no SD card was
+                            detected.
+*/
+int sd_init_ex(const sd_init_params_t *params);
 
 /** \brief  Initialize the SD card for use.
 
-    This function initializes the SD card for first use. This includes all steps
-    of the basic initialization sequence for SPI mode, as documented in the SD
-    card spec and at http://elm-chan.org/docs/mmc/mmc_e.html . This also will
-    call scif_sd_init() for you, so you don't have to worry about that ahead of
-    time.
+    This function initializes the SD card for first use using default parameters
+    (SCIF interface and CRC checking enabled).
 
     \retval 0               On success.
     \retval -1              On failure. This could indicate any number of
@@ -107,7 +135,7 @@ int sd_shutdown(void);
     \em     EIO - an I/O error occurred in reading data \n
     \em     ENXIO - SD card support was not initialized
 */
-int sd_read_blocks(uint32 block, size_t count, uint8 *buf);
+int sd_read_blocks(uint32_t block, size_t count, uint8_t *buf);
 
 /** \brief  Write one or more blocks to the SD card.
 
@@ -130,7 +158,7 @@ int sd_read_blocks(uint32 block, size_t count, uint8 *buf);
     \em     EIO - an I/O error occurred in reading data \n
     \em     ENXIO - SD card support was not initialized
 */
-int sd_write_blocks(uint32 block, size_t count, const uint8 *buf);
+int sd_write_blocks(uint32_t block, size_t count, const uint8_t *buf);
 
 /** \brief  Retrieve the size of the SD card.
 
@@ -145,7 +173,7 @@ int sd_write_blocks(uint32 block, size_t count, const uint8 *buf);
     \em     EIO - an I/O error occurred in reading data \n
     \em     ENXIO - SD card support was not initialized
 */
-uint64 sd_get_size(void);
+uint64_t sd_get_size(void);
 
 /** \brief  Get a block device for a given partition on the SD card.
 
@@ -172,7 +200,23 @@ uint64 sd_get_size(void);
             is currently no support for GPT partition tables.
 */
 int sd_blockdev_for_partition(int partition, kos_blockdev_t *rv,
-                              uint8 *partition_type);
+                              uint8_t *partition_type);
+
+/** \brief  Get a block device for the SD card.
+
+    This function creates a block device descriptor for the attached SD card.
+    This block device is used to interface with various filesystems on the device.
+
+    \param  rv              Used to return the block device. Must be non-NULL.
+    \retval 0               On success.
+    \retval -1              On error, errno will be set as appropriate.
+
+    \par    Error Conditions:
+    \em     ENXIO - SD card support was not initialized
+    \em     EFAULT - rv was NULL
+    \em     ENOMEM - out of memory
+*/
+int sd_blockdev_for_device(kos_blockdev_t *rv);
 
 /** @} */
 

@@ -199,7 +199,7 @@ SHORT_NAMES            = NO
 # description.)
 # The default value is: NO.
 
-JAVADOC_AUTOBRIEF      = NO
+JAVADOC_AUTOBRIEF      = YES
 
 # If the JAVADOC_BANNER tag is set to YES then doxygen will interpret a line
 # such as
@@ -911,6 +911,16 @@ INPUT                  = $(KOS_BASE)/include \
                          $(KOS_BASE)/kernel/arch/$(KOS_ARCH)/include \
                          $(KOS_BASE)/addons/include \
                          $(KOS_BASE)/README.md \
+                         $(KOS_BASE)/doc/license/LICENSE.KOS \
+                         $(KOS_BASE)/doc/LICENSE.md \
+                         $(KOS_BASE)/doc/FAQ.md \
+                         $(KOS_BASE)/doc/CHANGELOG.md \
+                         $(KOS_BASE)/doc/README.md \
+                         $(KOS_BASE)/addons/readme.md \
+                         $(KOS_BASE)/utils/readme.md \
+                         $(KOS_BASE)/examples \
+                         $(KOS_BASE)/utils/kos-chain/README.md \
+                         $(KOS_BASE)/utils/kos-chain/doc \
                          $(KOS_BASE)/doc/pages
 
 # This tag can be used to specify the character encoding of the source files
@@ -2268,7 +2278,9 @@ PREDEFINED             = _arch_$(KOS_ARCH)=1 \
                          __END_DECLS= \
                          __extension__= \
                          __packed__= \
-                         __attribute__(x)=
+                         __attribute__(x)= \
+                         __deprecated= \
+                         __depr(x)= 
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

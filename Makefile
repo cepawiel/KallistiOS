@@ -5,6 +5,8 @@
 # Copyright (C) 2024 Falco Girgis
 #
 
+$(if ${KOS_BASE},,$(error KallistiOS environment not found. Did you source environ.sh? Please take a look at doc/README for more info.))
+
 # Make sure things compile nice and cleanly. We don't necessarily want to push
 # these flags out on to user code, but it's a good idea to keep them around for
 # compiling all of KOS proper.
@@ -12,23 +14,12 @@
 # here too. ;-)
 KOS_CFLAGS += -Wextra -Wno-deprecated
 
-# Add stuff to DIRS to auto-compile it with the big tree.
-DIRS = utils
-DIRS += kernel addons # examples
+# Add stuff to SUBDIRS to auto-compile it with the big tree.
+SUBDIRS = utils kernel addons # examples
 
-# Detect a non-working or missing environ.sh file.
-ifndef KOS_BASE
-error:
-	@echo You don\'t seem to have a working  environ.sh file. Please take a look at
-	@echo doc/README for more info.
-	@exit 0
-endif
+all: subdirs
 
-all:
-	for i in $(DIRS); do $(KOS_MAKE) -C $$i || exit -1; done
-
-clean:
-	for i in $(DIRS); do $(KOS_MAKE) -C $$i clean || exit -1; done
+clean: clean_subdirs
 
 distclean: clean
 	-rm -f lib/$(KOS_ARCH)/*
@@ -53,7 +44,9 @@ kos-ports_distclean: kos-ports_clean
 	$(KOS_PORTS)/utils/uninstall-all.sh
 
 all_auto_kos_base:
-	$(KOS_MAKE) all KOS_BASE=$(CURDIR)
+	$(MAKE) all KOS_BASE=$(CURDIR)
 
 clean_auto_kos_base:
-	$(KOS_MAKE) clean KOS_BASE=$(CURDIR)
+	$(MAKE) clean KOS_BASE=$(CURDIR)
+
+include $(KOS_BASE)/Makefile.rules

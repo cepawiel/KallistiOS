@@ -6,7 +6,8 @@
 */
 
 #include <dc/perfctr.h>
-#include <arch/timer.h>
+#include <kos/timer.h>
+#include <kos/cdefs.h>
 
 /* Control Registers */
 #define PMCR_CTRL(o)  ( *((volatile uint16_t *)(0xff000084) + (o << 1)) )
@@ -28,7 +29,7 @@
 #define NS_PER_CYCLE      5
 
 /* Get a counter's current configuration. */
-bool perf_cntr_config(perf_cntr_t counter, 
+bool perf_cntr_config(perf_cntr_t counter,
                       perf_cntr_event_t *event,
                       perf_cntr_clock_t *clock) {
 
@@ -41,14 +42,14 @@ bool perf_cntr_config(perf_cntr_t counter,
 }
 
 /* Start a performance counter. */
-void perf_cntr_start(perf_cntr_t counter, 
-                     perf_cntr_event_t event, 
+void perf_cntr_start(perf_cntr_t counter,
+                     perf_cntr_event_t event,
                      perf_cntr_clock_t clock) {
-    
+
     perf_cntr_clear(counter);
 
-    PMCR_CTRL(counter) = PMCR_RUN | 
-                        (clock << PMCR_PMCLK_SHIFT) | 
+    PMCR_CTRL(counter) = PMCR_RUN |
+                        (clock << PMCR_PMCLK_SHIFT) |
                         event;
 }
 
@@ -70,15 +71,26 @@ void perf_cntr_clear(perf_cntr_t counter) {
 
 /* Returns the count value of a counter */
 uint64_t perf_cntr_count(perf_cntr_t counter) {
-    return (uint64_t)(PMCTR_HIGH(counter) & 0xffff) << 32 | 
-                      PMCTR_LOW(counter);
+    uint32_t lo, hi, hi2;
+
+    do {
+        /* Read the high part twice, before and after reading the high part,
+         * to make sure that the low counter didn't overflow. We can detect an
+         * overflow by the two reads of the high part returning different
+         * values. */
+        hi = PMCTR_HIGH(counter);
+        lo = PMCTR_LOW(counter);
+        hi2 = PMCTR_HIGH(counter);
+    } while (__predict_false(hi != hi2));
+
+    return (uint64_t)hi << 32 | lo;
 }
 
 void perf_cntr_timer_enable(void) {
     perf_cntr_start(PRFC0, PMCR_ELAPSED_TIME_MODE, PMCR_COUNT_CPU_CYCLES);
 }
 
-bool perf_cntr_timer_enabled(void) { 
+bool perf_cntr_timer_enabled(void) {
     perf_cntr_event_t event;
     perf_cntr_clock_t clock;
 
@@ -95,12 +107,9 @@ void perf_cntr_timer_disable(void) {
 }
 
 uint64_t perf_cntr_timer_ns(void) {
-    /* Grab value first, before checking, to not record overhead. */
-    const uint64_t count = perf_cntr_count(PRFC0);
-
     /* If timer is configured and is running, use perf counters. */
-    if(perf_cntr_timer_enabled()) 
-        return count * NS_PER_CYCLE;
+    if(perf_cntr_timer_enabled())
+        return perf_cntr_count(PRFC0) * NS_PER_CYCLE;
     else /* Otherwise fall-through to TMU2. */
         return timer_ns_gettime64();
 }

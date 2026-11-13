@@ -29,10 +29,6 @@
 #ifndef __KOS_INIT_H
 #define __KOS_INIT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <kos/cdefs.h>
 __BEGIN_DECLS
 
@@ -56,11 +52,25 @@ __BEGIN_DECLS
     const uint32_t __kos_init_flags = (flags); \
     KOS_INIT_FLAG(flags, INIT_NET, arch_init_net); \
     KOS_INIT_FLAG(flags, INIT_NET, net_shutdown); \
-    KOS_INIT_FLAG(flags, INIT_NET, bba_la_init); \
-    KOS_INIT_FLAG(flags, INIT_NET, bba_la_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_NET, eth_init); \
+    KOS_INIT_FLAG(flags, INIT_NET, eth_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_FS_ALL, fs_init); \
+    KOS_INIT_FLAG(flags, INIT_FS_ALL, fs_shutdown); \
     KOS_INIT_FLAG(flags, INIT_FS_ROMDISK, fs_romdisk_init); \
     KOS_INIT_FLAG(flags, INIT_FS_ROMDISK, fs_romdisk_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_FS_NULL, fs_null_init); \
+    KOS_INIT_FLAG(flags, INIT_FS_NULL, fs_null_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_FS_PTY, fs_pty_init); \
+    KOS_INIT_FLAG(flags, INIT_FS_PTY, fs_pty_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_FS_RAMDISK, fs_ramdisk_init); \
+    KOS_INIT_FLAG(flags, INIT_FS_RAMDISK, fs_ramdisk_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_FS_RND, fs_rnd_init); \
+    KOS_INIT_FLAG(flags, INIT_FS_RND, fs_rnd_shutdown); \
+    KOS_INIT_FLAG(flags, INIT_FS_DEV, fs_dev_init); \
+    KOS_INIT_FLAG(flags, INIT_FS_DEV, fs_dev_shutdown); \
     KOS_INIT_FLAG(flags, INIT_EXPORT, export_init); \
+    KOS_INIT_FLAG(flags, INIT_LIBRARY, library_init); \
+    KOS_INIT_FLAG(flags, INIT_LIBRARY, library_shutdown); \
     KOS_INIT_FLAG_NONE(flags, INIT_NO_SHUTDOWN, kos_shutdown); \
     KOS_INIT_FLAGS_ARCH(flags)
 
@@ -96,13 +106,13 @@ extern const uint32_t __kos_init_flags;
 
 /** \brief  Deprecated and not useful anymore. */
 #define KOS_INIT_ROMDISK(rd) \
-    void *__kos_romdisk = (rd); \
+    const void *__kos_romdisk = (rd); \
     extern void fs_romdisk_mount_builtin_legacy(void); \
     void (*fs_romdisk_mount_builtin_legacy_weak)(void) = fs_romdisk_mount_builtin_legacy
 
 
 /** \brief  Built-in romdisk. Do not modify this directly! */
-extern void * __kos_romdisk;
+extern const void * __kos_romdisk;
 
 /** \brief  State that you don't want a romdisk. */
 #define KOS_INIT_ROMDISK_NONE   NULL
@@ -126,26 +136,36 @@ extern void * __kos_romdisk;
     \see    dreamcast_initflags
     @{
 */
-/** \brief  Default init flags (IRQs on, preemption enabled, romdisks). */
-#define INIT_DEFAULT    (INIT_IRQ | INIT_THD_PREEMPT | INIT_FS_ROMDISK | \
+
+/** Default init flags (IRQs on, preemption enabled, romdisks). */
+#define INIT_DEFAULT    (INIT_IRQ     | INIT_THD_PREEMPT | INIT_FS_ALL | \
                          INIT_DEFAULT_ARCH)
 
-#define INIT_NONE        0x00000000  /**< \brief Don't init optional things */
-#define INIT_IRQ         0x00000001  /**< \brief Enable IRQs at startup */
-/* Preemptive mode is the only mode now. Keeping define for compatibility. */
-#define INIT_THD_PREEMPT 0x00000002  /**< \deprecated Already default mode */
-#define INIT_NET         0x00000004  /**< \brief Enable built-in networking */
-#define INIT_MALLOCSTATS 0x00000008  /**< \brief Enable malloc statistics */
-#define INIT_QUIET       0x00000010  /**< \brief Disable dbgio */
-#define INIT_EXPORT      0x00000020  /**< \brief Export kernel symbols */
-#define INIT_FS_ROMDISK  0x00000040  /**< \brief Enable support for romdisks */
-#define INIT_NO_SHUTDOWN 0x00000080  /**< \brief Disable hardware shutdown */
+/** Init flags to include all virtual filesystems within `/dev` */
+#define INIT_FS_DEV     (INIT_FS_NULL | INIT_FS_RND)
+
+/** Init flags to include all virtual filesystems (default). */
+#define INIT_FS_ALL     (INIT_FS_ROMDISK | INIT_FS_RAMDISK | \
+                         INIT_FS_PTY     | INIT_FS_DEV)
+
+#define INIT_NONE        0x00000000  /**< Don't init optional things */
+#define INIT_THD_PREEMPT 0x00000000  /**< \deprecated Already default mode */
+#define INIT_IRQ         0x00000001  /**< Enable IRQs at startup */
+#define INIT_NET         0x00000002  /**< Enable built-in networking */
+#define INIT_MALLOCSTATS 0x00000004  /**< Enable malloc statistics */
+#define INIT_QUIET       0x00000008  /**< Disable dbgio */
+#define INIT_EXPORT      0x00000010  /**< Export kernel symbols/dynamic libs */
+#define INIT_LIBRARY     0x00000010  /**< Export kernel symbols/dynamic libs */
+
+#define INIT_FS_ROMDISK  0x00000020  /**< Enable support for romdisks */
+#define INIT_FS_RAMDISK  0x00000040  /**< Enable support for ramdisk VFS */
+#define INIT_FS_PTY      0x00000080  /**< Enable support for PTY VFS */
+#define INIT_FS_NULL     0x00000100  /**< Enable support for /dev/null VFS */
+#define INIT_FS_RND      0x00000200  /**< Enable support for /dev/urandom VFS */
+
+#define INIT_NO_SHUTDOWN 0x00000400  /**< Disable hardware shutdown */
 /** @} */
 
 __END_DECLS
-
-#ifdef __cplusplus
-};
-#endif
 
 #endif /* !__KOS_INIT_H */

@@ -1,0 +1,153 @@
+# KallistiOS Examples
+This page serves as an index for all KallistiOS examples.
+
+- [**2ndmix**](2ndmix/): The flagship KallistiOS demo. It is a remixed version of _Stars_, the first publicly available homebrew Dreamcast demo!
+- basic
+  - asserthnd
+  - breaking
+  - dma
+  - exec
+  - fpu
+  - gdb_breaking
+  - memtest32
+  - mmu
+  - posix_resource
+  - stackprotector
+  - stacktrace
+  - threading
+  - watchdog
+- cdrom
+  - stream
+- conio
+  - adventure
+  - basic
+  - conio_dbgio
+  - kosh
+  - wump
+- cpp
+  - clock
+  - concurrency
+  - dcplib
+  - filesystem
+  - gltest
+  - modplug_test
+  - out_of_memory
+- dev
+  - devroot
+  - [**random**](dev/random/): Demonstrates generating random numbers using /dev/urandom
+- dreameye
+  - basic
+  - sd
+- filesystem
+  - browse
+  - pty
+  - sd
+- g1ata
+  - atatest
+- gldc
+  - 2D_tex_quad
+  - basic
+  - benchmarks
+  - nehe
+- [**hello**](hello/): demonstrates printing text to the console
+- keyboard
+  - keyrawtest
+  - keytest
+- libdream
+  - 320x240
+  - 640x480
+  - cdfs
+  - keyboard
+  - lcd
+  - mouse
+  - rgb888
+  - spu
+  - ta
+  - vmu
+- library
+- lightgun
+  - basic
+- lua
+  - basic
+- [**micropython**](micropython/): Demonstrates basic usage of the MicroPython kos-port
+- modem
+  - basic
+  - ppp
+- mruby
+  - dreampresent
+  - mrbtris
+- network
+  - basic
+  - dns-client
+  - httpd
+  - isp-settings
+  - ntp
+  - ping
+  - ping6
+  - speedtest
+  - udpecho6
+- objc
+  - runtime
+- parallax
+  - bubbles
+  - delay_cube
+  - font
+  - raster_melt
+  - rotocube
+  - serpent_dma
+  - sinus
+- [**png**](png/): - Demonstrates the use of PNG textures, gzip decompression, and drawing text
+- profiling
+  - gcov
+  - gprof
+- pthread
+  - general
+- pvr
+  - bumpmap
+  - cheap_shadow
+  - fb_tex
+  - modifier_volume
+  - modifier_volume_tex
+  - modifier_volume_zclip
+  - palette
+  - plasma
+  - pvrline
+  - pvrmark
+  - pvrmark_strips
+  - pvrmark_strips_direct
+  - strided_texture
+  - texture_render
+  - yuv_converter
+- raylib
+  - raytris
+- [**rumble**](rumble/): Demonstrates sending raw commands to the purupuru/jump pack
+- sd
+  - ext2fs
+  - mke2fs
+- sdl
+  - sound
+- sound
+  - cdda
+  - ghettoplay-vorbis
+  - hello-adx
+  - hello-mp3
+  - hello-ogg
+  - hello-opus
+  - multi-stream
+  - sfx
+  - sfxbuf
+- tsunami
+  - banner
+  - font
+  - genmenu
+- video
+  - bfont
+  - minifont
+  - multibuffer
+  - palmenu
+  - screenshot
+- vmu
+  - vmu_beep
+  - vmu_game
+  - vmu_lcd
+  - vmu_pkg

@@ -3,7 +3,8 @@
    dc/maple/vmu.h
    Copyright (C) 2000-2002 Jordan DeLong, Megan Potter
    Copyright (C) 2008 Donald Haase
-   Copyright (C) 2023 Falco Girgis, Andy Barajas
+   Copyright (C) 2023 Andy Barajas
+   Copyright (C) 2023, 2025 Falco Girgis
 
 */
 
@@ -26,12 +27,13 @@
 #ifndef __DC_MAPLE_VMU_H
 #define __DC_MAPLE_VMU_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
-#include <arch/types.h>
 #include <dc/maple.h>
+#include <kos/regfield.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -111,12 +113,12 @@ int vmu_has_241_blocks(maple_device_t *dev);
                 for a very few commercial games.
 
     \param  dev             The device to enable/disable 41 blocks.
-    \param  enable          Values other than 0 enables. Equal to 0 disables.
+    \param  enable          True enables. false disables.
 
     \retval 0               On success
     \retval -1              On failure
 */
-int vmu_toggle_241_blocks(maple_device_t *dev, int enable);
+int vmu_toggle_241_blocks(maple_device_t *dev, bool enable);
 
 /** \brief   Enable custom color of a VMU
     \ingroup vmu_settings
@@ -125,14 +127,14 @@ int vmu_toggle_241_blocks(maple_device_t *dev, int enable);
     This color is only displayed in the Dreamcast's file manager.
 
     \param  dev             The device to enable/disable custom color.
-    \param  enable          Values other than 0 enables. Equal to 0 disables.
+    \param  enable          True enables. false disables.
 
     \retval 0               On success
     \retval -1              On failure
 
     \sa vmu_set_custom_color
 */
-int vmu_use_custom_color(maple_device_t *dev, int enable);
+int vmu_use_custom_color(maple_device_t *dev, bool enable);
 
 /** \brief   Set custom color of a VMU
     \ingroup vmu_settings
@@ -188,12 +190,12 @@ int vmu_get_custom_color(maple_device_t *dev, uint8_t *red, uint8_t *green, uint
     icon by providing custom icons for both the DC BIOS menu and the VMU's LCD screen.
 
     \param  dev             The device to change the icon shape of.
-    \param  icon_shape      One of the values found in \ref vmu_icons.
+    \param  icon_shape      One of the values found in \ref bfont_vmu_icon_t.
 
     \retval 0               On success
     \retval -1              On failure
 
-    \sa vmu_icons, vmu_get_icon_shape
+    \sa bfont_vmu_icon_t, vmu_get_icon_shape
 */
 int vmu_set_icon_shape(maple_device_t *dev, uint8_t icon_shape);
 
@@ -210,12 +212,12 @@ int vmu_set_icon_shape(maple_device_t *dev, uint8_t icon_shape);
     icon by providing custom icons for both the DC BIOS menu and the VMU's LCD screen.
 
     \param  dev             The device to change the icon shape of.
-    \param  icon_shape      One of the values found in \ref vmu_icons.
+    \param  icon_shape      One of the values found in \ref bfont_vmu_icon_t.
 
     \retval 0               On success
     \retval -1              On failure
 
-    \sa vmu_icons, vmu_set_icon_shape
+    \sa bfont_vmu_icon_t, vmu_set_icon_shape
 */
 int vmu_get_icon_shape(maple_device_t *dev, uint8_t *icon_shape);
 
@@ -252,7 +254,7 @@ int vmu_get_icon_shape(maple_device_t *dev, uint8_t *icon_shape);
 
     \retval MAPLE_EOK       On success.
     \retval MAPLE_EAGAIN    If the command couldn't be sent. Try again later.
-    \retval MAPLE_ETIMEOUT  If the command timed out while blocking.
+    \retval MAPLE_EINVALID  The device does not support this functionality (VMS).
 
     \sa vmu_draw_lcd_rotated, vmu_draw_lcd_xbm, vmu_set_icon
 */
@@ -274,7 +276,7 @@ int vmu_draw_lcd(maple_device_t *dev, const void *bitmap);
     \param  bitmap          The bitmap to show.
     \retval MAPLE_EOK       On success.
     \retval MAPLE_EAGAIN    If the command couldn't be sent. Try again later.
-    \retval MAPLE_ETIMEOUT  If the command timed out while blocking.
+    \retval MAPLE_EINVALID  The device does not support this functionality (VMS).
 
     \sa vmu_draw_lcd, vmu_draw_lcd_xbm, vmu_set_icon
 */
@@ -291,7 +293,7 @@ int vmu_draw_lcd_rotated(maple_device_t *dev, const void *bitmap);
 
     \retval MAPLE_EOK       On success.
     \retval MAPLE_EAGAIN    If the command couldn't be sent. Try again later.
-    \retval MAPLE_ETIMEOUT  If the command timed out while blocking.
+    \retval MAPLE_EINVALID  The device does not support this functionality (VMS).
 
     \sa vmu_draw_lcd, vmu_set_icon
 */
@@ -412,7 +414,7 @@ int vmu_block_write(maple_device_t *dev, uint16_t blocknum, const uint8_t *buffe
 
     \retval MAPLE_EOK       On success.
     \retval MAPLE_EAGAIN    If the command couldn't be sent. Try again later.
-    \retval MAPLE_ETIMEOUT  If the command timed out while blocking.
+    \retval MAPLE_EINVALID  The device does not support this functionality (VMS).
 
     \sa vmu_beep_waveform
 */
@@ -474,7 +476,7 @@ int vmu_beep_raw(maple_device_t *dev, uint32_t beep);
 
     \retval MAPLE_EOK           On success.
     \retval MAPLE_EAGAIN        If the command couldn't be sent. Try again later.
-    \retval MAPLE_ETIMEOUT      If the command timed out while blocking.
+    \retval MAPLE_EINVALID  The device does not support this functionality (VMS).
 */
 int vmu_beep_waveform(maple_device_t *dev, uint8_t period1, uint8_t duty_cycle1, uint8_t period2, uint8_t duty_cycle2);
 
@@ -497,6 +499,7 @@ int vmu_beep_waveform(maple_device_t *dev, uint8_t period1, uint8_t duty_cycle1,
     \retval MAPLE_EOK       On success.
     \retval MAPLE_ETIMEOUT  If the command timed out while blocking.
     \retval MAPLE_EFAIL     On errors other than timeout.
+    \retval MAPLE_EINVALID  The device does not support this functionality (VMS).
 
     \sa vmu_get_datetime
 */
@@ -517,6 +520,7 @@ int vmu_set_datetime(maple_device_t *dev, time_t unix);
     \retval MAPLE_EOK       On success.
     \retval MAPLE_ETIMEOUT  If the command timed out while blocking.
     \retval MAPLE_EFAIL     On errors other than timeout.
+    \retval MAPLE_EINVALID  The device does not support this functionality (VMS).
 
     \sa vmu_set_datetime
 */
@@ -537,39 +541,50 @@ int vmu_get_datetime(maple_device_t *dev, time_t *unix);
     @{
 */
 
-#define VMU_DPAD_UP    (0<<1)   /**< \brief Up Dpad button on the VMU */
-#define VMU_DPAD_DOWN  (1<<1)   /**< \brief Down Dpad button on the VMU */
-#define VMU_DPAD_LEFT  (2<<1)   /**< \brief Left Dpad button on the VMU */
-#define VMU_DPAD_RIGHT (3<<1)   /**< \brief Right Dpad button on the VMU */
-#define VMU_A          (4<<1)   /**< \brief 'A' button on the VMU */
-#define VMU_B          (5<<1)   /**< \brief 'B' button on the VMU */
-#define VMU_MODE       (6<<1)   /**< \brief Mode button on the VMU */
-#define VMU_SLEEP      (7<<1)   /**< \brief Sleep button on the VMU */
+#define VMU_DPAD_UP    BIT(0)   /**< Up Dpad button on the VMU */
+#define VMU_DPAD_DOWN  BIT(1)   /**< Down Dpad button on the VMU */
+#define VMU_DPAD_LEFT  BIT(2)   /**< Left Dpad button on the VMU */
+#define VMU_DPAD_RIGHT BIT(3)   /**< Right Dpad button on the VMU */
+#define VMU_A          BIT(4)   /**< 'A' button on the VMU */
+#define VMU_B          BIT(5)   /**< 'B' button on the VMU */
+#define VMU_MODE       BIT(6)   /**< Mode button on the VMU */
+#define VMU_SLEEP      BIT(7)   /**< Sleep button on the VMU */
 
-/** \brief VMU's raw condition data: 0 = PRESSED, 1 = RELEASED */
-typedef struct vmu_cond {
-    uint8_t raw_buttons;        /**< \brief Combined button mask */
-    uint8_t dummy[3];           /**< \brief Unused response data */
-} vmu_cond_t;
+/** \brief Represents the combined state of all VMU buttons.
 
-/** \brief  VMU's "civilized" state data: 0 = RELEASED, 1 = PRESSED
+    Button states values:
+    - `0`: Released
+    - `1`: Pressed
 
     \note
     The Dpad buttons are automatically reoriented for you depending on
     which direction the VMU is facing in a particular type of controller.
  */
-typedef union vmu_state {
-    uint8_t buttons;            /**< \brief Combined button state mask */
+typedef union vmu_buttons {
+    uint8_t raw;                /**< Combined button state mask */
     struct {
-        uint8_t dpad_up:    1;  /**< \brief Dpad Up button state */
-        uint8_t dpad_down:  1;  /**< \brief Dpad Down button state */
-        uint8_t dpad_left:  1;  /**< \brief Dpad Left button state */
-        uint8_t dpad_right: 1;  /**< \brief Dpad Right button state */
-        uint8_t a:          1;  /**< \brief 'A' button state */
-        uint8_t b:          1;  /**< \brief 'B' button state */
-        uint8_t mode:       1;  /**< \brief Mode button state */
-        uint8_t sleep:      1;  /**< \brief Sleep button state */
+        uint8_t dpad_up:    1;  /**< Dpad Up button state */
+        uint8_t dpad_down:  1;  /**< Dpad Down button state */
+        uint8_t dpad_left:  1;  /**< Dpad Left button state */
+        uint8_t dpad_right: 1;  /**< Dpad Right button state */
+        uint8_t a:          1;  /**< 'A' button state */
+        uint8_t b:          1;  /**< 'B' button state */
+        uint8_t mode:       1;  /**< Mode button state */
+        uint8_t sleep:      1;  /**< Sleep button state */
     };
+} vmu_buttons_t;
+
+/** "Civilized" structure containing VMU's current state.
+
+    \note
+    Don't forget that if you want valid button state information, you must
+    enable polling for it in the driver with vmu_set_buttons_enabled()!
+*/
+typedef struct vmu_state {
+    struct {
+        vmu_buttons_t current;  /**< Button states from the current frame */
+        vmu_buttons_t previous; /**< Button states from the previous frame */
+    } buttons;                  /**< Latest two frames of button state data */
 } vmu_state_t;
 
 /** @} */
@@ -598,7 +613,7 @@ typedef union vmu_state {
 
     \sa vmu_get_buttons_enabled
 */
-void vmu_set_buttons_enabled(int enable);
+void vmu_set_buttons_enabled(bool enable);
 
 /** \brief   Check whether polling for VMU input has been enabled
     \ingroup maple_clock
@@ -612,7 +627,7 @@ void vmu_set_buttons_enabled(int enable);
 
     \sa vmu_set_buttons_enabled
 */
-int vmu_get_buttons_enabled(void);
+bool vmu_get_buttons_enabled(void);
 
 /** @} */
 

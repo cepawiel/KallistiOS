@@ -2,7 +2,8 @@
 
     rumble.c
     Copyright (C) 2004 SinisterTengu
-    Copyright (C) 2008, 2023 Donald Haase
+    Copyright (C) 2008, 2023, 2025 Donald Haase
+    Copyright (C) 2024 Daniel Fairchild
 
 */
 
@@ -22,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include <kos/init.h>
 
@@ -35,38 +37,77 @@ KOS_INIT_FLAGS(INIT_DEFAULT);
 
 plx_fcxt_t *cxt;
 
+void print_rumble_fields(purupuru_effect_t fields) {
+
+  printf("Rumble Fields:\n");
+  printf("  .cont   =  %s,\n", fields.cont ? "true" : "false");
+  printf("  .motor  =  %u,\n", fields.motor);
+
+  printf("  .bpow   =  %u,\n", fields.bpow);
+  printf("  .fpow   =  %u,\n", fields.fpow);
+  printf("  .div    =  %s,\n", fields.div ? "true" : "false");
+  printf("  .conv   =  %s,\n", fields.conv ? "true" : "false");
+
+  printf("  .freq   =  %u,\n", fields.freq);
+  printf("  .inc    =  %u,\n", fields.inc);
+}
 /* This blocks waiting for a specified device to be present and valid */
-void wait_for_dev_attach(maple_device_t **dev_ptr, unsigned int func) {
-    maple_device_t *dev = *dev_ptr;
+void wait_for_dev_attach(maple_device_t **cont_dev_ptr, maple_device_t **puru_dev_ptr) {
+    maple_device_t *dev = *puru_dev_ptr;
     point_t w = {40.0f, 200.0f, 10.0f, 0.0f};
 
     /* If we already have it, and it's still valid, leave */
-    /* dev->valid is set to 0 by the driver if the device
+    /* dev->valid is set to false by the driver if the device
        is detached, but dev will stay not-null */
-    if((dev != NULL) && (dev->valid != 0)) return;
+    if((dev != NULL) && dev->valid)
+        return;
 
     /* Draw up a screen */
-    pvr_wait_ready();
     pvr_scene_begin();
     pvr_list_begin(PVR_LIST_OP_POLY);
     pvr_list_begin(PVR_LIST_TR_POLY);
 
     plx_fcxt_begin(cxt);
     plx_fcxt_setpos_pnt(cxt, &w);
-    if(func == MAPLE_FUNC_CONTROLLER)
-        plx_fcxt_draw(cxt, "Please attach a controller!");
-    else if(func == MAPLE_FUNC_PURUPURU)
-        plx_fcxt_draw(cxt, "Please attach a rumbler!");
+    plx_fcxt_draw(cxt, "Please attach a rumbler!");
     plx_fcxt_end(cxt);
 
     pvr_scene_finish();
 
     /* Repeatedly check until we find one and it's valid */
-    while((dev == NULL) || (dev->valid == 0)) {
-        *dev_ptr = maple_enum_type(0, func);
-        dev = *dev_ptr;
+    while((dev == NULL) || !dev->valid) {
+        *puru_dev_ptr = maple_enum_type(0, MAPLE_FUNC_PURUPURU);
+        dev = *puru_dev_ptr;
         usleep(50);
     }
+
+    /* Now that we have a rumbler, grab its parent */
+    *cont_dev_ptr = maple_enum_dev(dev->port, 0);
+}
+
+
+typedef struct {
+  purupuru_effect_t effect;
+  const char *description;
+} baked_pattern_t;
+
+/* motor cannot be 0 (will generate error on official hardware), but we can set everything else to 0 for stopping */
+static const purupuru_effect_t rumble_stop = {.motor = 1};
+
+static size_t catalog_index = 0;
+static const baked_pattern_t catalog[] = {
+    {.effect = {.cont = false, .motor = 1, .fpow = 7, .freq = 26, .inc =  1}, .description = "Basic Thud (simple .5s jolt)"},
+    {.effect = {.cont = true,  .motor = 1, .fpow = 1, .freq =  7, .inc = 49}, .description = "Car Idle (69 Mustang)"},
+    {.effect = {.cont = false, .motor = 1, .fpow = 7, .conv = true, .freq = 21, .inc = 38}, .description = "Car Idle (VW beetle)"},
+    {.effect = {.cont = false, .motor = 1, .fpow = 7, .conv = true, .freq = 57, .inc = 51}, .description = "Eathquake (Vibrate, and fade out)"},
+    {.effect = {.cont = true,  .motor = 1, .fpow = 1, .freq =  40, .inc = 5}, .description = "Helicopter"},
+    {.effect = {.cont = false, .motor = 1, .fpow = 2, .freq =  7, .inc = 0}, .description = "Ship's Thrust (as in AAC)"},
+};
+
+static inline void word2hexbytes(uint32_t word, uint8_t *bytes) {
+  for (int i = 0; i < 8; i++) {
+    bytes[i] = (word >> (28 - (i * 4))) & 0xf;
+  }
 }
 
 int main(int argc, char *argv[]) {
@@ -78,9 +119,10 @@ int main(int argc, char *argv[]) {
     point_t w;
     int i = 0, count = 0;
     uint16_t old_buttons = 0, rel_buttons = 0;
-    uint32_t effect = 0;
-    uint8_t n[8] = { 0, 0, 0, 0, 0, 0, 0, 0 }; //nibbles
+    purupuru_effect_t effect = {.raw = 0};
+    uint8_t n[8];
     char s[8][2] = { "", "", "", "", "", "", "", "" };
+    word2hexbytes(0, n);
 
     pvr_init_defaults();
 
@@ -94,11 +136,9 @@ int main(int argc, char *argv[]) {
 
         /* Before drawing the screen, trap into these functions to be
            sure that there's at least one controller and one rumbler */
-        wait_for_dev_attach(&contdev, MAPLE_FUNC_CONTROLLER);
-        wait_for_dev_attach(&purudev, MAPLE_FUNC_PURUPURU);
+        wait_for_dev_attach(&contdev, &purudev);
 
         /* Start drawing and draw the header */
-        pvr_wait_ready();
         pvr_scene_begin();
         pvr_list_begin(PVR_LIST_OP_POLY);
         pvr_list_begin(PVR_LIST_TR_POLY);
@@ -130,6 +170,15 @@ int main(int argc, char *argv[]) {
 
         /* Store current button states + buttons which have been released. */
         state = (cont_state_t *)maple_dev_status(contdev);
+
+        /* Make sure we can rely on the state, otherwise loop. */
+        if(state == NULL) {
+            /* Finish things up */
+            plx_fcxt_end(cxt);
+            pvr_scene_finish();
+            continue;
+        }
+
         rel_buttons = (old_buttons ^ state->buttons);
 
         if((state->buttons & CONT_DPAD_LEFT) && (rel_buttons & CONT_DPAD_LEFT)) {
@@ -148,17 +197,28 @@ int main(int argc, char *argv[]) {
             if(n[i] > 0) n[i]--;
         }
 
+        if ((state->buttons & CONT_X) && (rel_buttons & CONT_X)) {
+            printf("Setting baked effect:\n\t'%s'\n", catalog[catalog_index].description);
+            word2hexbytes(catalog[catalog_index].effect.raw, n);
+            catalog_index++;
+            if (catalog_index >= sizeof(catalog) / sizeof(baked_pattern_t)) {
+                catalog_index = 0;
+            }
+        }
+
+
         if((state->buttons & CONT_A) && (rel_buttons & CONT_A)) {
-            effect = (n[0] << 28) + (n[1] << 24) + (n[2] << 20) + (n[3] << 16) +
+            effect.raw = (n[0] << 28) + (n[1] << 24) + (n[2] << 20) + (n[3] << 16) +
                      (n[4] << 12) + (n[5] << 8) + (n[6] << 4) + (n[7] << 0);
 
-            purupuru_rumble_raw(purudev, effect);
+            purupuru_rumble(purudev, &effect);
             /* We print these out to make it easier to track the options chosen */
-            printf("Rumble: 0x%lx!\n", effect);
+            printf("Rumble: 0x%lx!\n", effect.raw);
+            print_rumble_fields(effect);
         }
 
         if((state->buttons & CONT_B) && (rel_buttons & CONT_B)) {
-            purupuru_rumble_raw(purudev, 0x00000000);
+            purupuru_rumble(purudev, &rumble_stop);
             printf("Rumble Stopped!\n");
         }
 
@@ -186,6 +246,10 @@ int main(int argc, char *argv[]) {
         w.y += 25.0f;
 
         plx_fcxt_setpos_pnt(cxt, &w);
+        plx_fcxt_draw(cxt, "Press X for next baked pattern");
+        w.y += 25.0f;
+
+        plx_fcxt_setpos_pnt(cxt, &w);
         plx_fcxt_draw(cxt, "Press Start to quit.");
 
         plx_fcxt_end(cxt);
@@ -193,8 +257,8 @@ int main(int argc, char *argv[]) {
     }
 
     /* Stop rumbling before exiting, if it still exists. */
-    if((purudev != NULL) && (purudev->valid != 0))
-        purupuru_rumble_raw(purudev, 0x00000000);
+    if((purudev != NULL) && purudev->valid)
+        purupuru_rumble(purudev, &rumble_stop);
 
     plx_font_destroy(fnt);
     plx_fcxt_destroy(cxt);

@@ -22,7 +22,7 @@
 #ifndef __DC_ASIC_H
 #define __DC_ASIC_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
 #include <stdint.h>
@@ -31,7 +31,7 @@ __BEGIN_DECLS
     \brief          Events pertaining to the DC's System ASIC
     \ingroup        system
 
-*/ 
+*/
 
 /* All event codes are two 8-bit integers; the top integer is the event code
    register to look in to check the event (and to acknowledge it). The
@@ -187,6 +187,14 @@ __BEGIN_DECLS
 */
 typedef void (*asic_evt_handler)(uint32_t code, void *data);
 
+/** \brief   ASIC event handler table entry.
+    \ingroup asic
+ */
+typedef struct {
+    asic_evt_handler hdl;
+    void *data;
+} asic_evt_handler_entry_t;
+
 /** \brief   Set or remove an ASIC handler.
     \ingroup asic
 
@@ -198,7 +206,7 @@ typedef void (*asic_evt_handler)(uint32_t code, void *data);
     \param  data            A user pointer that will be passed to the callback.
 
 */
-void asic_evt_set_handler(uint16_t code, asic_evt_handler handler, void *data);
+asic_evt_handler_entry_t asic_evt_set_handler(uint16_t code, asic_evt_handler handler, void *data);
 
 /** \brief   Register a threaded handler with the given ASIC event.
     \ingroup asic

@@ -14,7 +14,7 @@
 
 static void draw_instructions(int faucet_vol, int brushing_vol);
 
-static cont_state_t *get_cont_state();
+static cont_state_t *get_cont_state(void);
 static int button_pressed(uint32_t current_buttons, uint32_t changed_buttons, uint32_t button);
 
 int main(int argc, char **argv) {
@@ -28,7 +28,6 @@ int main(int argc, char **argv) {
 
     vid_set_mode(DM_640x480, PM_RGB555);
     // Initialize sound system and WAV
-    snd_stream_init();
     wav_init();
 
     wav_stream_hnd_t faucet = wav_create("/rd/faucet.wav", LOOP);
@@ -103,7 +102,6 @@ int main(int argc, char **argv) {
 static void draw_instructions(int faucet_vol, int brushing_vol) {
     int x = 20, y = 20+24;
     int color = 1;
-    char volume_str[32];
 
     bfont_draw_str(vram_s + y*640+x, 640, color, "Press X to play faucet sound");
     y += 24;
@@ -111,10 +109,8 @@ static void draw_instructions(int faucet_vol, int brushing_vol) {
     y += 24;
     bfont_draw_str(vram_s + y*640+x, 640, color, "Press L-Trigger to increase faucet volume");
     y += 24;
-    memset(volume_str, 0, 32);
-    snprintf(volume_str, 32, "Faucet Volume: %3i", faucet_vol);
-    bfont_draw_str(vram_s + y*640+x, 640, color, volume_str);
-    
+    bfont_draw_str_fmt(vram_s + y*640+x, 640, color, "Faucet Volume: %3i", faucet_vol);
+
     y += 48;
     bfont_draw_str(vram_s + y*640+x, 640, color, "Press Y to play brushing sound");
     y += 24;
@@ -122,15 +118,13 @@ static void draw_instructions(int faucet_vol, int brushing_vol) {
     y += 24;
     bfont_draw_str(vram_s + y*640+x, 640, color, "Press R-Trigger to increase brushing volume");
     y += 24;
-    memset(volume_str, 0, 32);
-    snprintf(volume_str, 32, "Brushing Volume: %3i", brushing_vol);
-    bfont_draw_str(vram_s + y*640+x, 640, color, volume_str);
+    bfont_draw_str_fmt(vram_s + y*640+x, 640, color, "Brushing Volume: %3i", brushing_vol);
 
     y += 48;
     bfont_draw_str(vram_s + y*640+x, 640, color, "Press Start to exit program");
 }
 
-static cont_state_t *get_cont_state() {
+static cont_state_t *get_cont_state(void) {
     maple_device_t *cont;
     cont_state_t *state;
 

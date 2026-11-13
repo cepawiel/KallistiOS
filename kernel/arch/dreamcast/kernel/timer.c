@@ -11,7 +11,8 @@
 
 #include <arch/arch.h>
 #include <arch/timer.h>
-#include <arch/irq.h>
+#include <kos/irq.h>
+#include <kos/regfield.h>
 
 /* Register access macros */
 #define TIMER8(o)   ( *((volatile uint8_t  *)(TIMER_BASE + (o))) )
@@ -19,7 +20,7 @@
 #define TIMER32(o)  ( *((volatile uint32_t *)(TIMER_BASE + (o))) )
 
 /* Register base address */
-#define TIMER_BASE 0xffd80000 
+#define TIMER_BASE 0xffd80000
 
 /* Register offsets */
 #define TOCR    0x00    /* Timer Output Control Register */
@@ -41,18 +42,18 @@
 #define STR0    0   /* TCNT0 Counter Start */
 
 /* Timer Control Register fields */
-#define ICPF    (1 << 9)   /* Input Capture Interrupt Flag (TMU2 only) */
-#define UNF     (1 << 8)   /* Underflow Flag */
-#define ICPE    (3 << 6)   /* Input Capture Control (TMU2 only) */
-#define UNIE    (1 << 5)   /* Underflow Interrupt Control */
-#define CKEG    (3 << 3)   /* Clock Edge */
-#define TPSC    (7 << 0)   /* Timer Prescalar */
+#define ICPF    BIT(9)          /* Input Capture Interrupt Flag (TMU2 only) */
+#define UNF     BIT(8)          /* Underflow Flag */
+#define ICPE    GENMASK(7, 6)   /* Input Capture Control (TMU2 only) */
+#define UNIE    BIT(5)          /* Underflow Interrupt Control */
+#define CKEG    GENMASK(4, 3)   /* Clock Edge */
+#define TPSC    GENMASK(2, 0)   /* Timer Prescalar */
 
 /* Clock divisor value for each TPSC value. */
 #define TDIV(div)   (4 << (2 * div))
 
 /* Timer Prescalar TPSC values (Peripheral clock divided by N) */
-typedef enum PCK_DIV { 
+typedef enum PCK_DIV {
     PCK_DIV_4,      /* Pck/4    => 80ns */
     PCK_DIV_16,     /* Pck/16   => 320ns*/
     PCK_DIV_64,     /* Pck/64   => 1280ns*/
@@ -64,8 +65,11 @@ typedef enum PCK_DIV {
 #define TIMER_TPSC      PCK_DIV_4
 /* Timer IRQ priority levels (0-15) */
 #define TIMER_PRIO      15
-/* Peripheral clock rate (50Mhz) */
-#define TIMER_PCK       50000000
+
+/* Peripheral clock rate (~49.9 Mhz).
+ * The main clock is not exactly 200 MHz, and has been measured at
+ * 199499520 Hz. The peripheral clock is a quarter of that. */
+#define TIMER_PCK       (199499520 / 4)
 
 /* Timer registers, indexed by Timer ID. */
 static const unsigned tcors[] = { TCOR0, TCOR1, TCOR2 };
@@ -73,11 +77,11 @@ static const unsigned tcnts[] = { TCNT0, TCNT1, TCNT2 };
 static const unsigned tcrs[] = { TCR0, TCR1, TCR2 };
 
 /* Apply timer configuration to registers. */
-static int timer_prime_apply(int which, uint32_t count, int interrupts) { 
+static int timer_prime_apply(int which, uint32_t count, int interrupts) {
     assert(which <= TMU2);
 
     TIMER32(tcnts[which]) = count;
-    TIMER32(tcors[which]) = count; 
+    TIMER32(tcors[which]) = count;
 
     TIMER16(tcrs[which]) = TIMER_TPSC;
 
@@ -113,7 +117,7 @@ static int timer_prime_wait(int which, uint32_t millis, int interrupts) {
 int timer_start(int which) {
     assert(which <= TMU2);
 
-    TIMER8(TSTR) |= (1 << which);
+    TIMER8(TSTR) |= BIT(which);
     return 0;
 }
 
@@ -124,7 +128,7 @@ int timer_stop(int which) {
     timer_disable_ints(which);
 
     /* Stop timer */
-    TIMER8(TSTR) &= ~(1 << which);
+    TIMER8(TSTR) &= ~BIT(which);
 
     return 0;
 }
@@ -132,7 +136,7 @@ int timer_stop(int which) {
 int timer_running(int which) {
     assert(which <= TMU2);
 
-    return !!(TIMER8(TSTR) & (1 << which));
+    return !!(TIMER8(TSTR) & BIT(which));
 }
 
 /* Returns the count value of a timer */
@@ -153,62 +157,25 @@ int timer_clear(int which) {
     return !!(value & UNF);
 }
 
-/* Spin-loop kernel sleep func: uses the secondary timer in the
-   SH-4 to very accurately delay even when interrupts are disabled */
-void timer_spin_sleep(int ms) {
-    timer_prime(TMU1, 1000, 0);
-    timer_clear(TMU1);
-    timer_start(TMU1);
-
-    while(ms > 0) {
-        while(!(TIMER16(tcrs[TMU1]) & UNF))
-            ;
-
-        timer_clear(TMU1);
-        ms--;
-    }
-
-    timer_stop(TMU1);
-}
-
-void timer_spin_delay_ns(unsigned short ns) {
-    uint64_t timeout = timer_ns_gettime64() + ns;
-
-    /* Note that we don't actually care about the counter overflowing.
-       Nobody will run their Dreamcast straight for 585 years. */
-    while(timer_ns_gettime64() < timeout);
-}
-
-void timer_spin_delay_us(unsigned short us) {
-    uint64_t timeout = timer_us_gettime64() + us;
-
-    /* Note that we don't actually care about the counter overflowing.
-       Nobody will run their Dreamcast straight for 584942 years. */
-    while(timer_us_gettime64() < timeout);
-}
-
 /* Enable timer interrupts; needs to move to irq.c sometime. */
 void timer_enable_ints(int which) {
-    volatile uint16_t *ipra = (uint16_t *)0xffd00004;
-    *ipra |= (TIMER_PRIO << (12 - 4 * which));
+    irq_set_priority(IRQ_SRC_TMU0 - which, TIMER_PRIO);
 }
 
 /* Disable timer interrupts; needs to move to irq.c sometime. */
 void timer_disable_ints(int which) {
-    volatile uint16_t *ipra = (uint16_t *)0xffd00004;
-    *ipra &= ~(TIMER_PRIO << (12 - 4 * which));
+    irq_set_priority(IRQ_SRC_TMU0 - which, IRQ_PRIO_MASKED);
 }
 
 /* Check whether ints are enabled */
 int timer_ints_enabled(int which) {
-    volatile uint16_t *ipra = (uint16_t *)0xffd00004;
-    return (*ipra & (TIMER_PRIO << (12 - 4 * which))) != 0;
+    return irq_get_priority(IRQ_SRC_TMU0 - which) > 0;
 }
 
 /* Seconds elapsed (since KOS startup), updated from the TMU2 underflow ISR */
-static volatile uint32_t timer_ms_counter = 0; 
+static volatile uint32_t timer_ms_counter = 0;
 /* Max counter value (used as TMU2 reload), to target a 1 second interval */
-static          uint32_t timer_ms_countdown;   
+static          uint32_t timer_ms_countdown;
 
 /* TMU2 interrupt handler, called every second. Simply updates our
    running second counter and clears the underflow flag. */
@@ -223,7 +190,7 @@ static void timer_ms_handler(irq_t source, irq_context_t *context, void *data) {
     TIMER16(tcrs[TMU2]) &= ~UNF;
 }
 
-void timer_ms_enable(void) {
+static void timer_ms_enable(void) {
     irq_set_handler(EXC_TMU2_TUNI2, timer_ms_handler, NULL);
     timer_prime(TMU2, 1, 1);
     timer_ms_countdown = timer_count(TMU2);
@@ -231,24 +198,13 @@ void timer_ms_enable(void) {
     timer_start(TMU2);
 }
 
-void timer_ms_disable(void) {
-    timer_stop(TMU2);
-    timer_disable_ints(TMU2);
-}
-
-/* Internal structure used to hold timer values in seconds + ticks. */
-typedef struct timer_value {
-    uint32_t secs, ticks;
-} timer_val_t;
-
-/* Generic function for retrieving the current time maintained by TMU2. 
+/* Generic function for retrieving the current time maintained by TMU2.
    Returns the total amount of time that has elapsed since KOS has been
-   initialized by using a LUT of precomputed, scaled timing values (tns)
-   plus a shift for optimized division. */
-static timer_val_t timer_getticks(const uint32_t *tns, uint32_t shift) {
-    uint32_t secs, unf1, unf2, counter1, counter2, delta, ticks;
+   initialized, in seconds + ticks. */
+timer_val_t __dreamcast_get_ticks(void) {
+    uint32_t secs, unf1, unf2, counter1, counter2, delta;
     uint16_t tmu2;
-    
+
     do {
         /* Read the underflow flag twice, and the counter twice.
            - If both flags are set, it's just unrealistic that one
@@ -277,75 +233,11 @@ static timer_val_t timer_getticks(const uint32_t *tns, uint32_t shift) {
         counter2 = TIMER32(tcnts[TMU2]);
         tmu2 = TIMER16(tcrs[TMU2]);
         unf2 = !!(tmu2 & UNF);
-    } while (unf1 != unf2 || counter1 < counter2);
+    } while(__predict_false(unf1 != unf2 || counter1 < counter2));
 
     delta = timer_ms_countdown - counter2;
 
-    /* We have to do the elapsed time calculations as a 64-bit unsigned
-    integer, otherwise when using the fastest clock speed for timers,
-    this value will very quickly overflow mid-expression, before the
-    final division. */
-    ticks = ((uint64_t)delta * tns[tmu2 & TPSC]) >> shift;
-
-    return (timer_val_t){ .secs = secs, .ticks = ticks, };
-}
-
-/* Millisecond timer */
-static const uint32_t tns_values_ms[] = {
-    /* 80, 320, 1280, 5120, 20480
-       each multiplied by (1 << 37) / (1000 * 1000) */
-    10995116, 43980465, 175921860, 703687442, 2814749767
-};
-
-void timer_ms_gettime(uint32_t *secs, uint32_t *msecs) {
-    const timer_val_t val = timer_getticks(tns_values_ms, 37);
-
-    if(secs)  *secs = val.secs;
-    if(msecs) *msecs = val.ticks;
-}
-
-uint64_t timer_ms_gettime64(void) {
-   const timer_val_t val = timer_getticks(tns_values_ms, 37);
-
-    return (uint64_t)val.secs * 1000ull + (uint64_t)val.ticks;
-}
-
-/* Microsecond timer */
-static const uint32_t tns_values_us[] = {
-    /* 80, 320, 1280, 5120, 20480,
-       each multiplied by (1 << 27) / 1000 */
-    10737418, 42949673, 171798692, 687194767, 2748779069,
-};
-
-void timer_us_gettime(uint32_t *secs, uint32_t *usecs) {
-    const timer_val_t val = timer_getticks(tns_values_us, 27);
-
-    if(secs)  *secs = val.secs;
-    if(usecs) *usecs = val.ticks;
-}
-
-uint64_t timer_us_gettime64(void) {
-   const timer_val_t val = timer_getticks(tns_values_us, 27);
-
-    return (uint64_t)val.secs * 1000000ull + (uint64_t)val.ticks;
-}
-
-/* Nanosecond timer */
-static const uint32_t tns_values_ns[] = {
-    80, 320, 1280, 5120, 20480,
-};
-
-void timer_ns_gettime(uint32_t *secs, uint32_t *nsecs) { 
-    const timer_val_t val = timer_getticks(tns_values_ns, 0);
-
-    if(secs)  *secs = val.secs;
-    if(nsecs) *nsecs = val.ticks;
-}
-
-uint64_t timer_ns_gettime64(void) {
-   const timer_val_t val = timer_getticks(tns_values_ns, 0);
-
-    return (uint64_t)val.secs * 1000000000ull + (uint64_t)val.ticks;
+    return (timer_val_t){ .secs = secs, .ticks = delta, };
 }
 
 /* Primary kernel timer. What we'll do here is handle actual timer IRQs
@@ -370,7 +262,7 @@ static void tp_handler(irq_t src, irq_context_t *cxt, void *data) {
         /* Call the callback, if any */
         if(tp_callback)
             tp_callback(cxt);
-    } 
+    }
     /* Do we have less than a second remaining? */
     else if(tp_ms_remaining < 1000) {
         /* Schedule a "last leg" timer. */
@@ -379,7 +271,7 @@ static void tp_handler(irq_t src, irq_context_t *cxt, void *data) {
         timer_clear(TMU0);
         timer_start(TMU0);
         tp_ms_remaining = 0;
-    } 
+    }
     /* Otherwise, we're just counting down. */
     else {
         tp_ms_remaining -= 1000;
@@ -445,6 +337,9 @@ int timer_init(void) {
 
     /* Setup the primary timer stuff */
     timer_primary_init();
+
+    /* Setup the 1 HZ timer */
+    timer_ms_enable();
 
     return 0;
 }

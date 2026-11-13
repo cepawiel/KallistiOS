@@ -23,10 +23,9 @@
 #ifndef __KOS_FS_RAMDISK_H
 #define __KOS_FS_RAMDISK_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
-#include <arch/types.h>
 #include <kos/fs.h>
 
 /** \defgroup vfs_ramdisk   Ramdisk
@@ -37,8 +36,8 @@ __BEGIN_DECLS
 */
 
 /** \cond */
-int fs_ramdisk_init(void);
-int fs_ramdisk_shutdown(void);
+void fs_ramdisk_init(void);
+void fs_ramdisk_shutdown(void);
 /** \endcond */
 
 /** \brief  Attach a block of memory as a file in the ramdisk.
@@ -54,7 +53,7 @@ int fs_ramdisk_shutdown(void);
     \retval 0               On success
     \retval -1              On failure
 */
-int fs_ramdisk_attach(const char * fn, void * obj, size_t size);
+int fs_ramdisk_attach(const char *fn, void *obj, size_t size);
 
 /** \brief  Detach a file from the ramdisk.
 
@@ -68,7 +67,7 @@ int fs_ramdisk_attach(const char * fn, void * obj, size_t size);
     \retval 0               On success
     \retval -1              On failure
 */
-int fs_ramdisk_detach(const char * fn, void ** obj, size_t * size);
+int fs_ramdisk_detach(const char *fn, void **obj, size_t *size);
 
 /** @} */
 

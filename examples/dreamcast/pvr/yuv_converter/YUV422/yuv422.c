@@ -35,9 +35,7 @@
 */
 
 #include <stdio.h>
-#include <malloc.h>
-#include <arch/arch.h>
-#include <arch/cache.h>
+#include <stdlib.h>
 
 #include <dc/pvr.h>
 #include <dc/maple.h>
@@ -71,9 +69,9 @@ static int load_image(void) {
         goto error;
     }
 
-    y_plane = memalign(32, FRAME_TEXTURE_WIDTH * FRAME_TEXTURE_HEIGHT);
-    u_plane = memalign(32, FRAME_TEXTURE_WIDTH * FRAME_TEXTURE_HEIGHT / 2);
-    v_plane = memalign(32, FRAME_TEXTURE_WIDTH * FRAME_TEXTURE_HEIGHT / 2);
+    y_plane = aligned_alloc(32, FRAME_TEXTURE_WIDTH * FRAME_TEXTURE_HEIGHT);
+    u_plane = aligned_alloc(32, FRAME_TEXTURE_WIDTH * FRAME_TEXTURE_HEIGHT / 2);
+    v_plane = aligned_alloc(32, FRAME_TEXTURE_WIDTH * FRAME_TEXTURE_HEIGHT / 2);
 
     if(!y_plane || !u_plane || !v_plane) {
         printf("Could not allocate memory for y,u, or v plane\n");
@@ -143,8 +141,6 @@ static int setup_pvr(void) {
                     pvr_txr, 
                     PVR_FILTER_BILINEAR);
     pvr_poly_compile(&hdr, &cxt);
-
-    hdr.mode3 |= PVR_TXRFMT_STRIDE;
 
     vert[0].z     = vert[1].z     = vert[2].z     = vert[3].z     = 1.0f; 
     vert[0].argb  = vert[1].argb  = vert[2].argb  = vert[3].argb  = 
@@ -244,8 +240,6 @@ static void convert_YUV422_to_YUV422_texture(void) {
 }
 
 static void show_image(void) {
-
-    pvr_wait_ready();
     pvr_scene_begin();
 
     pvr_list_begin(PVR_LIST_OP_POLY);
@@ -273,7 +267,7 @@ static void __attribute__((__noreturn__)) wait_exit(void) {
 
             if(state)   {
                 if(state->buttons)
-                    arch_exit();
+                    exit(0);
             }
         }
     }

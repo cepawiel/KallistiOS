@@ -8,9 +8,9 @@ OBJS = concurrency.o
 KOS_CPPFLAGS += -std=c++20
 KOS_GCCVER_MIN = 12.0.0
 
-all: rm-elf $(TARGET)
-
 include $(KOS_BASE)/Makefile.rules
+
+all: rm-elf $(TARGET)
 
 clean:
 	-rm -f $(TARGET) $(OBJS) 
@@ -27,4 +27,3 @@ run: $(TARGET)
 dist:
 	rm -f $(OBJS)
 	$(KOS_STRIP) $(TARGET)
-

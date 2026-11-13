@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <dc/pvr.h>
 #include <dc/video.h>
+#include <kos/regfield.h>
+
 #include "pvr_internal.h"
 
 /*
@@ -26,22 +28,22 @@
 #define BYTES_TO_WORDS(x) ((x) >> 2)
 #define WORDS_TO_BYTES(x) ((x) << 2)
 
-#define IS_ALIGNED(x, m) ((x) % (m) == 0)
+#define LIST_ENABLED(i) (pvr_state.lists_enabled & BIT(i))
 
-#define LIST_ENABLED(i) (pvr_state.lists_enabled & (1 << (i)))
+#define PVR_TILE_MATRIX_HEADER_SIZE 0x48
 
 
 /* Fill Tile Matrix buffers. This function takes a base address and sets up
    the rendering structures there. Each tile of the screen (32x32) receives
    a small buffer space. */
-static void pvr_init_tile_matrix(int which, int presort) {
+static void pvr_init_tile_matrix(int which, bool presort) {
     volatile pvr_ta_buffers_t   *buf;
     int     x, y, tn;
-    uint32      *vr;  /* Note: We're working in 4-byte pointer maths in this function */
+    uint32_t      *vr;  /* Note: We're working in 4-byte pointer maths in this function */
     volatile int    *opb_sizes;
-    //uint32      matbase, opbbase;
+    //uint32_t      matbase, opbbase;
 
-    vr = (uint32*)PVR_RAM_BASE;
+    vr = (uint32_t *)PVR_RAM_BASE;
     buf = pvr_state.ta_buffers + which;
     opb_sizes = pvr_state.opb_size;
 
@@ -56,9 +58,9 @@ static void pvr_init_tile_matrix(int which, int presort) {
     */
 
     /* Header of zeros */
-    vr += BYTES_TO_WORDS(buf->tile_matrix);
+    vr += BYTES_TO_WORDS(buf->tile_matrix - PVR_TILE_MATRIX_HEADER_SIZE);
 
-    for(x = 0; x < 0x48; x += 4)
+    for(x = 0; x < PVR_TILE_MATRIX_HEADER_SIZE; x += 4)
         * vr++ = 0;
 
     /* Initial init tile */
@@ -69,9 +71,6 @@ static void pvr_init_tile_matrix(int which, int presort) {
     vr[4] = 0x80000000;
     vr[5] = 0x80000000;
     vr += 6;
-
-    /* Must skip over zeroed header for actual usage */
-    buf->tile_matrix += 0x48;
 
     /* Now the main tile matrix */
 #if 0
@@ -121,19 +120,36 @@ static void pvr_init_tile_matrix(int which, int presort) {
         }
     }
 
-    vr[-6] |= 1 << 31;
+    vr[-6] |= BIT(31);
 }
 
 /* Fill all tile matrices */
-void pvr_init_tile_matrices(int presort) {
+void pvr_init_tile_matrices(bool presort) {
     int i;
 
     for(i = 0; i < 2; i++)
         pvr_init_tile_matrix(i, presort);
 }
 
-void pvr_set_presort_mode(int presort) {
-    pvr_init_tile_matrix(pvr_state.ta_target, presort);
+void pvr_set_presort_mode(bool presort) {
+    uint32_t tile_matrix;
+    uint32_t *vr;
+    int x, y;
+
+    if(__predict_false(!pvr_state.vbuf_doublebuf))
+	    pvr_wait_render_done();
+
+    tile_matrix = pvr_state.ta_buffers[pvr_state.ta_target].tile_matrix;
+    vr = (uint32_t *)PVR_RAM_BASE + BYTES_TO_WORDS(tile_matrix) + 6;
+
+    for(x = 0; x < pvr_state.tw; x++) {
+        for(y = 0; y < pvr_state.th; y++) {
+            vr[0] = (y << 8) | (x << 2) | (presort << 29);
+            vr += 6;
+        }
+    }
+
+    vr[-6] |= BIT(31);
 }
 
 
@@ -147,15 +163,11 @@ available texture RAM, the PVR structures for the two frames are broken
 up and placed at 0x000000 and 0x400000.
 
 */
-#define BUF_ALIGN 128
-#define BUF_ALIGN_MASK (BUF_ALIGN - 1)
-#define APPLY_ALIGNMENT(addr) (((addr) + BUF_ALIGN_MASK) & ~BUF_ALIGN_MASK)
-
-void pvr_allocate_buffers(pvr_init_params_t *params) {
+void pvr_allocate_buffers(const pvr_init_params_t *params) {
     volatile pvr_ta_buffers_t   *buf;
     volatile pvr_frame_buffers_t    *fbuf;
     int i, j;
-    uint32  outaddr, sconst, opb_size_accum, opb_total_size;
+    uint32_t  outaddr, sconst, opb_size_accum, opb_total_size;
 
     /* Set screen sizes; pvr_init has ensured that we have a valid mode
        and all that by now, so we can freely dig into the vid_mode
@@ -171,7 +183,7 @@ void pvr_allocate_buffers(pvr_init_params_t *params) {
 
     /* We can actually handle non-mod-32 heights pretty easily -- just extend
        the frame buffer a bit, but use a pixel clip for the real mode. */
-    if(!IS_ALIGNED(pvr_state.h, 32)) {
+    if(!__is_aligned(pvr_state.h, 32)) {
         pvr_state.h = (pvr_state.h + 32) & ~31;
         pvr_state.th++;
     }
@@ -192,12 +204,12 @@ void pvr_allocate_buffers(pvr_init_params_t *params) {
        for each poly type */
     opb_total_size = 0;
 
-    /* Previously, we specified 1 << 20 to say that the OPB grows "down" when
+    /* Previously, we specified BIT(20) to say that the OPB grows "down" when
        the TA needs more than one. To make it grow "up" instead (increasing addresses),
        we set 0 as the default value.
      */
 #if 0
-    pvr_state.list_reg_mask = 1 << 20;
+    pvr_state.list_reg_mask = BIT(20);
 #else
     pvr_state.list_reg_mask = 0;
 #endif
@@ -228,7 +240,7 @@ void pvr_allocate_buffers(pvr_init_params_t *params) {
         }
 
         if(sconst > 0) {
-            pvr_state.lists_enabled |= (1 << i);
+            pvr_state.lists_enabled |= BIT(i);
             pvr_state.list_reg_mask |= sconst << (4 * i);
         }
     }
@@ -252,7 +264,7 @@ void pvr_allocate_buffers(pvr_init_params_t *params) {
         buf->vertex_size = params->vertex_buf_size;
         outaddr += buf->vertex_size;
         /* N-byte align */
-        outaddr = APPLY_ALIGNMENT(outaddr);
+        outaddr = __align_up(outaddr, 128);
 
         /* Object Pointer Blocks */
         buf->opb = outaddr;
@@ -272,23 +284,26 @@ void pvr_allocate_buffers(pvr_init_params_t *params) {
         assert(buf->opb_size == opb_size_accum);
 
         /* N-byte align */
-        outaddr = APPLY_ALIGNMENT(outaddr);
+        outaddr = __align_up(outaddr, 128);
+
+        /* Tile Matrix header */
+        outaddr += PVR_TILE_MATRIX_HEADER_SIZE;
 
         /* Tile Matrix */
         buf->tile_matrix = outaddr;
-        buf->tile_matrix_size = WORDS_TO_BYTES(18 + 6 * pvr_state.tw * pvr_state.th);
+        buf->tile_matrix_size = WORDS_TO_BYTES(6 + 6 * pvr_state.tw * pvr_state.th);
         outaddr += buf->tile_matrix_size;
 
         /* N-byte align */
-        outaddr = APPLY_ALIGNMENT(outaddr);
+        outaddr = __align_up(outaddr, 128);
 
         /* Output buffer */
         fbuf->frame = outaddr;
-        fbuf->frame_size = pvr_state.w * pvr_state.h * 2;
+        fbuf->frame_size = pvr_state.w * pvr_state.h * vid_pmode_bpp[vid_mode->pm];
         outaddr += fbuf->frame_size;
 
         /* N-byte align */
-        outaddr = APPLY_ALIGNMENT(outaddr);
+        outaddr = __align_up(outaddr, 128);
     }
 
     /* Texture ram is whatever is left */
@@ -316,7 +331,7 @@ void pvr_allocate_buffers(pvr_init_params_t *params) {
     dbglog(DBG_KDEBUG, "  list_mask %08lx\n", pvr_state.list_reg_mask);
     dbglog(DBG_KDEBUG, "  w/h = %d/%d, tw/th = %d/%d\n", pvr_state.w, pvr_state.h,
            pvr_state.tw, pvr_state.th);
-    dbglog(DBG_KDEBUG, "  zclip %08lx\n", *((uint32*)&pvr_state.zclip));
+    dbglog(DBG_KDEBUG, "  zclip %08lx\n", *((uint32_t *)&pvr_state.zclip));
     dbglog(DBG_KDEBUG, "  pclip_left/right %08lx/%08lx\n", pvr_state.pclip_left, pvr_state.pclip_right);
     dbglog(DBG_KDEBUG, "  pclip_top/bottom %08lx/%08lx\n", pvr_state.pclip_top, pvr_state.pclip_bottom);
     dbglog(DBG_KDEBUG, "  lists_enabled %08lx\n", pvr_state.lists_enabled);

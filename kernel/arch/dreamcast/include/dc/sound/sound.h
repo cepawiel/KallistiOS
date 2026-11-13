@@ -2,7 +2,7 @@
 
    dc/sound/sound.h
    Copyright (C) 2002 Megan Potter
-   Copyright (C) 2023 Ruslan Rostovtsev
+   Copyright (C) 2023, 2024 Ruslan Rostovtsev
 
 */
 
@@ -22,11 +22,11 @@
 #ifndef __DC_SOUND_SOUND_H
 #define __DC_SOUND_SOUND_H
 
-#include <sys/cdefs.h>
+#include <kos/cdefs.h>
 __BEGIN_DECLS
 
-#include <arch/types.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /** \defgroup audio_driver  Driver
     \brief                  Low-level driver for SPU and audio management
@@ -42,11 +42,11 @@ __BEGIN_DECLS
     return a pointer directly, but rather an offset in SPU RAM.
 
     \param  size            The amount of memory to allocate, in bytes.
-    
+
     \return                 The location of the start of the block on success,
                             or 0 on failure.
 */
-uint32 snd_mem_malloc(size_t size);
+uint32_t snd_mem_malloc(size_t size);
 
 /** \brief  Free a block of allocated memory in the SPU RAM pool.
 
@@ -54,7 +54,7 @@ uint32 snd_mem_malloc(size_t size);
 
     \param  addr            The location of the start of the block to free.
 */
-void snd_mem_free(uint32 addr);
+void snd_mem_free(uint32_t addr);
 
 /** \brief  Get the size of the largest allocateable block in the SPU RAM pool.
 
@@ -67,7 +67,7 @@ void snd_mem_free(uint32 addr);
     \return                 The size of the largest available block of memory in
                             the SPU RAM pool.
 */
-uint32 snd_mem_available(void);
+uint32_t snd_mem_available(void);
 
 /** \brief  Reinitialize the SPU RAM pool.
 
@@ -78,7 +78,7 @@ uint32 snd_mem_available(void);
     \param  reserve         The amount of memory to reserve as a base.
     \retval 0               On success (no failure conditions defined).
 */
-int snd_mem_init(uint32 reserve);
+int snd_mem_init(uint32_t reserve);
 
 /** \brief  Shutdown the SPU RAM allocator.
 
@@ -115,7 +115,7 @@ void snd_shutdown(void);
     \param  size            The size of the packet, in 32-bit increments.
     \retval 0               On success (no error conditions defined).
 */
-int snd_sh4_to_aica(void *packet, uint32 size);
+int snd_sh4_to_aica(void *packet, uint32_t size);
 
 /** \brief  Begin processing AICA queue requests.
 
@@ -155,7 +155,7 @@ void snd_poll_resp(void);
     Splits a buffer containing 2 interleaved channels of 16-bit PCM samples
     into 2 separate buffers of 16-bit PCM samples.
 
-    \warning 
+    \warning
     All arguments must be 32-byte aligned.
 
     \param data   Source buffer of interleaved stereo samples
@@ -173,7 +173,7 @@ void snd_pcm16_split(uint32_t *data, uint32_t *left, uint32_t *right, size_t siz
     into 2 separate buffers of 16-bit PCM samples by using the store queues
     for data transfer.
 
-    \warning 
+    \warning
     All arguments must be 32-byte aligned.
 
     \param data   Source buffer of interleaved stereo samples
@@ -216,7 +216,28 @@ void snd_adpcm_split(uint32_t *data, uint32_t *left, uint32_t *right, size_t siz
 
 /** @} */
 
+/** \brief  Get AICA channel position.
+
+    This function returns actual the channel position
+    that stores in SPU memory and updated by the SPU firmware.
+
+    \param  ch              The channel to retrieve position.
+
+    \return                 Last channel position in samples.
+*/
+uint16_t snd_get_pos(unsigned int ch);
+
+/** \brief  Get AICA channel playback state.
+
+    This function returns actual the channel playback state
+    that stores in AICA registers directly.
+
+    \param  ch              The channel to check.
+
+    \return                 True if the channel is playing.
+*/
+bool snd_is_playing(unsigned int ch);
+
 __END_DECLS
 
 #endif  /* __DC_SOUND_SOUND_H */
-

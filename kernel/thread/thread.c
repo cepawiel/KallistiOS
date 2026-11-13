@@ -2,30 +2,36 @@
 
    kernel/thread/thread.c
    Copyright (C) 2000, 2001, 2002, 2003 Megan Potter
-   Copyright (C) 2010, 2016 Lawrence Sebald
+   Copyright (C) 2010, 2016, 2023 Lawrence Sebald
    Copyright (C) 2023 Colton Pawielski
-   Copyright (C) 2023, 2024 Falco Girgis
+   Copyright (C) 2023, 2024, 2025 Falco Girgis
 */
 
-#include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <limits.h>
 #include <malloc.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <reent.h>
 #include <errno.h>
+#include <stdalign.h>
+
 #include <kos/thread.h>
 #include <kos/dbgio.h>
+#include <kos/dbglog.h>
+#include <kos/intmath.h>
+#include <kos/irq.h>
 #include <kos/sem.h>
 #include <kos/rwsem.h>
 #include <kos/cond.h>
 #include <kos/genwait.h>
-#include <arch/irq.h>
-#include <arch/timer.h>
-#include <dc/perfctr.h>
+#include <kos/timer.h>
+
 #include <arch/arch.h>
+#include <arch/stack.h>
+#include <arch/tls_static.h>
 
 /*
 
@@ -40,21 +46,23 @@ also using their queue library verbatim (sys/queue.h).
 
 */
 
-/* TLS Section ELF data - exported from linker script. */
-extern int _tdata_start, _tdata_size;
-extern int _tbss_size;
-extern long _tdata_align, _tbss_align;
-
-/* Utility function for aligning an address or offset. */
-static inline size_t align_to(size_t address, size_t alignment) {
-    return (address + (alignment - 1)) & ~(alignment - 1);
-}
+/* Builtin background thread data */
+static alignas(THD_STACK_ALIGNMENT) uint8_t thd_reaper_stack[512];
+static alignas(THD_STACK_ALIGNMENT) uint8_t thd_idle_stack[512];
 
 /*****************************************************************************/
 /* Thread scheduler data */
 
 /* Scheduler timer interrupt frequency (Hertz) */
-static unsigned int thd_sched_ms = 1000 / HZ;
+static unsigned int thd_sched_ms;
+
+/* log2() of the time interval in milliseconds since a thread's last preemption,
+ * after which the thread's priority is doubled */
+static unsigned int thd_ageing_ms_log2;
+
+/* The number of ticks since its last preemption after which a thread's priority
+ * will be doubled. */
+#define THD_AGEING_THRESHOLD 8
 
 /* Thread list. This includes all threads except dead ones. */
 static struct ktlist thd_list;
@@ -101,6 +109,8 @@ static const char *thd_state_to_str(kthread_t *thd) {
             else
                 return "wait";
 
+        case STATE_POLLING:
+            return "polling";
         case STATE_FINISHED:
             return "finished";
         default:
@@ -121,11 +131,14 @@ int thd_each(int (*cb)(kthread_t *thd, void *user_data), void *data) {
 }
 
 int thd_pslist(int (*pf)(const char *fmt, ...)) {
-    uint64_t cpu_time, ns_time;
+    uint64_t cpu_time, ms_time, cpu_total = 0;
     kthread_t *cur;
 
     pf("All threads (may not be deterministic):\n");
-    pf("addr\t  tid\tprio\tflags\t  wait_timeout\tcpu_time\t      state\t  name\n");
+    pf("addr\t  tid\tprio\tflags\t  wait_timeout\t  cpu_time\t      state\t  name\n");
+
+    irq_disable_scoped();
+    ms_time = timer_ms_gettime64();
 
     LIST_FOREACH(cur, &thd_list, t_list) {
         pf("%08lx  ", CONTEXT_PC(cur->context));
@@ -139,15 +152,20 @@ int thd_pslist(int (*pf)(const char *fmt, ...)) {
         pf("%08lx  ", cur->flags);
         pf("%12lu", (uint32_t)cur->wait_timeout);
 
-        ns_time = perf_cntr_timer_ns();
-        cpu_time = thd_get_cpu_time(cur);
+        cpu_time = cur->cpu_time.total;
+        cpu_total += cpu_time;
 
         pf("%12llu (%6.3lf%%)  ",
-            cpu_time, (double)cpu_time / (double)ns_time * 100.0);
+            cpu_time, (double)cpu_time / (double)ms_time * 100.0);
 
         pf("%-10s  ", thd_state_to_str(cur));
         pf("%-10s\n", cur->label);
     }
+
+    pf("-\t  -\t -\t       -\t     -");
+    pf("%12llu (%6.3lf%%)       -      [system]\n", (ms_time - cpu_total),
+        (double)(ms_time - cpu_total) / (double)ms_time * 100.0);
+
     pf("--end of list--\n");
 
     return 0;
@@ -203,6 +221,19 @@ kthread_t *thd_by_tid(tid_t tid) {
 }
 
 
+static bool thd_has_polls(void) {
+    kthread_t *thd;
+
+    irq_disable_scoped();
+
+    TAILQ_FOREACH(thd, &run_queue, thdq) {
+        if(thd->state == STATE_POLLING)
+            return true;
+    }
+
+    return false;
+}
+
 /*****************************************************************************/
 /* Thread support routines: idle task and start task wrapper */
 
@@ -219,7 +250,10 @@ static void *thd_idle_task(void *param) {
     (void)param;
 
     for(;;) {
-        arch_sleep();   /* We can safely enter sleep mode here */
+        if(thd_has_polls())
+            thd_pass();     /* If some threads are polling, reschedule */
+        else
+            arch_sleep();   /* We can safely enter sleep mode here */
     }
 
     /* Never reached */
@@ -353,98 +387,18 @@ int thd_remove_from_runnable(kthread_t *thd) {
     return 0;
 }
 
-/* Creates and initializes the static TLS segment for a thread,
-   composed of a Thread Control Block (TCB), followed by .TDATA,
-   followed by .TBSS, very carefully ensuring alignment of each
-   subchunk. 
-*/
-static void *thd_create_tls_data(void) {
-    size_t align, tdata_offset, tdata_end, tbss_offset, 
-        tbss_end, align_rem, tls_size;
-    
-    tcbhead_t *tcbhead;
-    void *tdata_segment, *tbss_segment;
-
-    /* Cached and typed local copies of TLS segment data for sizes, 
-       alignments, and initial value data pointer, exported by the 
-       linker script. 
-
-       SIZES MUST BE VOLATILE or the optimizer on non-debug builds will 
-       optimize zero-check conditionals away, since why would the 
-       address of a variable be NULL? (Linker script magic, it can be.)
-   */
-    const volatile size_t   tdata_size  = (size_t)(&_tdata_size);
-    const volatile size_t   tbss_size   = (size_t)(&_tbss_size);
-    const          size_t   tdata_align = tdata_size ? (size_t)_tdata_align : 1;
-    const          size_t   tbss_align  = tbss_size ? (size_t)_tbss_align : 1;
-    const          uint8_t *tdata_start = (const uint8_t *)(&_tdata_start);
-
-    /* Each subsegment of the requested memory chunk must be aligned
-       by the largest segment's memory alignment requirements. 
-   */
-    align = 8;               /* tcbhead_t has to be aligned by 8. */
-    if(tdata_align > align)
-        align = tdata_align; /* .TDATA segment's alignment */
-    if(tbss_align > align)
-        align = tbss_align;  /* .TBSS segment's alignment */
-
-    /* Calculate the sizing and offset location of each subsegment. */
-    tdata_offset = align_to(sizeof(tcbhead_t), align);
-    tdata_end    = tdata_offset + tdata_size;
-    tbss_offset  = align_to(tdata_end, tbss_align);
-    tbss_end     = tbss_offset + tbss_size; 
-
-    /* Calculate final aligned size requirement. */
-    align_rem = tbss_end % align;
-    tls_size  = tbss_end;
-
-    if(align_rem)
-        tls_size += (align - align_rem);
-
-    /* Allocate combined chunk with calculated size and alignment.  */
-    tcbhead = memalign(align, tls_size);
-    assert(tcbhead);    
-    assert(!((uintptr_t)tcbhead % 8)); 
-
-    /* Since we aren't using either member within it, zero out tcbhead. */
-    memset(tcbhead, 0, sizeof(tcbhead_t));  
-
-    /* Initialize .TDATA */
-    if(tdata_size) { 
-        tdata_segment = (uint8_t *)tcbhead + tdata_offset;
-
-        /* Verify proper alignment. */   
-        assert(!((uintptr_t)tdata_segment % tdata_align));
-
-        /* Initialize tdata_segment with .tdata bytes from ELF. */
-        memcpy(tdata_segment, tdata_start, tdata_size);
-    }
-
-    /* Initialize .TBSS */
-    if(tbss_size) { 
-        tbss_segment = (uint8_t *)tcbhead + tbss_offset; 
-
-        /* Verify proper alignment. */
-        assert(!((uintptr_t)tbss_segment % tbss_align));
-           
-        /* Zero-initialize tbss_segment. */
-        memset(tbss_segment, 0, tbss_size);
-    }
-
-    /* Return segment head: this is what GBR points to. */
-    return tcbhead;
-}
-
 /* New thread function; given a routine address, it will create a
-   new kernel thread with the given attributes. When the routine
-   returns, the thread will exit. Returns the new thread struct. */
+   new thread with the given attributes. When the routine returns,
+   the thread will exit. Returns the new thread struct.
+   Note that this function is also used in thd_init() to add the
+   already running kernel thread to the thread scheduler. This is
+   the only circumstance in which routine should be NULL. */
 kthread_t *thd_create_ex(const kthread_attr_t *restrict attr,
                          void *(*routine)(void *param), void *param) {
     kthread_t *nt = NULL;
     tid_t tid;
-    uint32_t params[4];
-    int oldirq = 0;
-    kthread_attr_t real_attr = { 0, THD_STACK_SIZE, NULL, PRIO_DEFAULT, NULL };
+    uintptr_t params[4];
+    kthread_attr_t real_attr = { false, THD_STACK_SIZE, NULL, PRIO_DEFAULT, NULL, false };
 
     if(attr)
         real_attr = *attr;
@@ -462,28 +416,34 @@ kthread_t *thd_create_ex(const kthread_attr_t *restrict attr,
     if(!real_attr.prio)
         real_attr.prio = PRIO_DEFAULT;
 
-    oldirq = irq_disable();
+    irq_disable_scoped();
 
     /* Get a new thread id */
     tid = thd_next_free();
 
     if(tid >= 0) {
         /* Create a new thread structure */
-        nt = memalign(32, sizeof(kthread_t));
+        nt = aligned_alloc(32, sizeof(kthread_t));
 
         if(nt != NULL) {
             /* Clear out potentially unused stuff */
             memset(nt, 0, sizeof(kthread_t));
 
+            /* Initialize the flags to defaults immediately. */
+            nt->flags = THD_DEFAULTS;
+
             /* Create a new thread stack */
             if(!real_attr.stack_ptr) {
-                nt->stack = (uint32_t*)malloc(real_attr.stack_size);
+                nt->stack = (uint32_t*)aligned_alloc(THD_STACK_ALIGNMENT,
+                                                     real_attr.stack_size);
 
                 if(!nt->stack) {
                     free(nt);
-                    irq_restore(oldirq);
                     return NULL;
                 }
+
+                /* Since we allocated the stack, we own the stack! */
+                nt->flags |= THD_OWNS_STACK;
             }
             else {
                 nt->stack = (uint32_t*)real_attr.stack_ptr;
@@ -491,27 +451,39 @@ kthread_t *thd_create_ex(const kthread_attr_t *restrict attr,
 
             nt->stack_size = real_attr.stack_size;
 
-            /* Create static TLS data */
-            nt->tcbhead = thd_create_tls_data();
-
             /* Populate the context */
-            params[0] = (uint32_t)routine;
-            params[1] = (uint32_t)param;
+            params[0] = (uintptr_t)routine;
+            params[1] = (uintptr_t)param;
             params[2] = 0;
             params[3] = 0;
             irq_create_context(&nt->context,
-                               ((uint32_t)nt->stack) + nt->stack_size,
-                               (uint32_t)thd_birth, params, 0);
+                               ((uintptr_t)nt->stack) + nt->stack_size,
+                               (uintptr_t)thd_birth, params);
 
-            /* Set Thread Pointer */
-            nt->context.gbr = (uint32_t)nt->tcbhead;
+            /* Some architectures require setting up a new stack before use.
+               We won't do this if routine is NULL, however, as this means
+               we are creating the kernel thread, which is already running. */
+            if(routine) {
+                arch_stk_setup(nt);
+            }
+
+            /* Create static TLS data if the thread hasn't disabled it. */
+            if(real_attr.disable_tls) {
+                nt->flags |= THD_DISABLE_TLS;
+            } else if(!arch_tls_setup_data(nt)) {
+                if(nt->flags & THD_OWNS_STACK)
+                    free(nt->stack);
+                free(nt);
+                return NULL;
+            }
+
             nt->tid = tid;
+            nt->real_prio = real_attr.prio;
             nt->prio = real_attr.prio;
-            nt->flags = THD_DEFAULTS;
             nt->state = STATE_READY;
 
             if(!real_attr.label) {
-                strcpy(nt->label, "[un-named kernel thread]");
+                strcpy(nt->label, "unnamed");
             }
             else {
                 strncpy(nt->label, real_attr.label, 255);
@@ -543,62 +515,65 @@ kthread_t *thd_create_ex(const kthread_attr_t *restrict attr,
         }
     }
 
-    irq_restore(oldirq);
     return nt;
 }
 
 kthread_t *thd_create(bool detach, void *(*routine)(void *), void *param) {
-    kthread_attr_t attrs = { detach, 0, 0, 0, 0 };
+    kthread_attr_t attrs = { detach, 0, NULL, 0, NULL, false };
     return thd_create_ex(&attrs, routine, param);
 }
 
 /* Given a thread id, this function removes the thread from
    the execution chain. */
 int thd_destroy(kthread_t *thd) {
-    int oldirq = 0;
     kthread_tls_kv_t *i, *i2;
 
     /* Make sure there are no ints */
-    oldirq = irq_disable();
+    irq_disable_scoped();
 
     /* If any threads were waiting on this one, then go ahead
        and unblock them. */
     genwait_wake_all(thd);
 
-    /* De-schedule the thread if it's scheduled and free the
-       thread structure */
+    /* If this thread was waiting on something, we need to remove it from
+       genwait so that it doesn't try to notify a dead thread later. */
+    if(thd->wait_obj)
+        genwait_wake_thd(thd->wait_obj, thd, ECANCELED);
+
+    /* De-schedule the thread if it's scheduled. */
     thd_remove_from_runnable(thd);
+
+    /* Remove it from the thread list. */
     LIST_REMOVE(thd, t_list);
 
-    /* Clean up any thread-local data */
+    /* Call destructors on TLS entries.  */
     LIST_FOREACH(i, &thd->tls_list, kv_list) {
         if(i->destructor) {
             i->destructor(i->data);
         }
     }
 
+    /* Free TLS entries. */
     i = LIST_FIRST(&thd->tls_list);
-
     while(i != NULL) {
         i2 = LIST_NEXT(i, kv_list);
         free(i);
         i = i2;
     }
 
-    /* Free its stack */
-    free(thd->stack);
+    /* Free its stack (if we're managing it). */
+    if(thd->flags & THD_OWNS_STACK)
+        free(thd->stack);
 
-    /* Free static TLS segment */
-    free(thd->tcbhead);
+    /* Free static TLS segment (if it hasn't been disabled for the thread). */
+    if(!(thd->flags & THD_DISABLE_TLS))
+        arch_tls_destroy_data(thd);
 
     /* Free the thread */
     free(thd);
 
     /* Remove it from the count */
     --thd_count;
-
-    /* Put ints back the way they were */
-    irq_restore(oldirq);
 
     return 0;
 }
@@ -616,19 +591,72 @@ int thd_set_prio(kthread_t *thd, prio_t prio) {
 
     /* Set the new priority */
     thd->prio = prio;
+    thd->real_prio = prio;
     return 0;
+}
+
+prio_t thd_get_prio(const kthread_t *thd) {
+    if(!thd)
+        thd = thd_current;
+
+    return thd->prio;
+}
+
+tid_t thd_get_id(const kthread_t *thd) {
+    if(!thd)
+        thd = thd_current;
+
+    return thd->tid;
 }
 
 /*****************************************************************************/
 /* Scheduling routines */
 
-static void thd_update_cpu_time(kthread_t *thd) {
-    const uint64_t ns = perf_cntr_timer_ns();
-
+static void thd_update_cpu_time(kthread_t *thd, uint64_t now) {
     thd_current->cpu_time.total +=
-            ns - thd_current->cpu_time.scheduled;
+            now - thd_current->cpu_time.scheduled;
 
-    thd->cpu_time.scheduled = ns;
+    thd->cpu_time.scheduled = now;
+}
+
+static inline bool thd_stack_overflow(const kthread_t *thd) {
+    uintptr_t sp = CONTEXT_SP(thd->context);
+
+    /* soft-gUSA temporarily stores a negative restart offset in r15.
+       Defer the stack check until r15 holds a stack pointer again. */
+    if(__is_defined(__SH_ATOMIC_MODEL_SOFT_GUSA__) && sp > UINT32_MAX - 128u)
+        return false;
+
+    return thd->stack && thd->stack_size && sp < (uintptr_t)thd->stack;
+}
+
+/* Helper function that sets a thread being scheduled */
+static inline void thd_schedule_inner(kthread_t *thd, uint64_t now) {
+    thd_remove_from_runnable(thd);
+
+    thd_update_cpu_time(thd, now);
+
+    thd_current = thd;
+    _impure_ptr = &thd->thd_reent;
+    thd->state = STATE_RUNNING;
+
+    /* Make sure the thread hasn't underrun its stack */
+    if(thd_stack_overflow(thd_current)) {
+        thd_pslist(printf);
+        thd_pslist_queue(printf);
+        assert_msg(0, "Thread stack underrun");
+    }
+
+    irq_set_context(&thd_current->context);
+}
+
+static inline prio_t thd_calc_prio(const kthread_t *thd, uint32_t now) {
+    prio_t prio = thd->prio;
+
+    if(__predict_true(prio < PRIO_MAX))
+       prio >>= (now - (uint32_t)thd->cpu_time.scheduled) >> thd_ageing_ms_log2;
+
+    return prio;
 }
 
 /* Thread scheduler; this function will find a new thread to run when a
@@ -647,16 +675,13 @@ static void thd_update_cpu_time(kthread_t *thd) {
    to make sure the priorities are all straight before returning, but you
    don't want a full context switch inside the same priority group.
 */
-void thd_schedule(bool front_of_line, uint64_t now) {
-    int dontenq;
-    kthread_t *thd;
+void thd_schedule(bool front_of_line) {
+    kthread_t *thd, *next_thd = NULL;
+    prio_t prio, max_prio = INT_MAX;
+    uint64_t now;
+    int ret;
 
-    if(now == 0)
-        now = timer_ms_gettime64();
-
-    /* We won't re-enqueue the current thread if it's NULL (i.e., the
-       thread blocked itself somewhere) or if it's a zombie (below) */
-    dontenq = !thd_current;
+    now = timer_ms_gettime64();
 
     /* If there's only two thread left, it's the idle task and the reaper task:
        exit the OS */
@@ -667,7 +692,7 @@ void thd_schedule(bool front_of_line, uint64_t now) {
 
     /* If the current thread is supposed to be in the front of the line, and it
        did not die, re-enqueue it to the front of the line now. */
-    if(front_of_line && !dontenq && thd_current->state == STATE_RUNNING) {
+    if(front_of_line && thd_current->state == STATE_RUNNING) {
         thd_current->state = STATE_READY;
         thd_add_to_runnable(thd_current, front_of_line);
     }
@@ -679,49 +704,58 @@ void thd_schedule(bool front_of_line, uint64_t now) {
        we don't find a normal runnable thread, the idle process will
        always be there at the bottom. */
     TAILQ_FOREACH(thd, &run_queue, thdq) {
+        if(__predict_false(thd->state == STATE_POLLING)) {
+            /* Is it polling? Call the polling function. */
+
+            if(thd->wait_timeout && thd->wait_timeout < now) {
+                thd->state = STATE_READY;
+                CONTEXT_RET(thd->context) = 0;
+            }
+            else {
+                ret = thd->poll_cb(thd->wait_obj);
+
+                if(ret) {
+                    thd->state = STATE_READY;
+                    CONTEXT_RET(thd->context) = ret;
+                }
+            }
+        }
+
         /* Is it runnable? If not, keep going */
-        if(thd->state == STATE_READY)
-            break;
+        if(thd->state != STATE_READY)
+            continue;
+
+        prio = thd_calc_prio(thd, now);
+        if(prio < max_prio) {
+            next_thd = thd;
+            max_prio = prio;
+        }
     }
 
     /* If we didn't already re-enqueue the thread and we are supposed to do so,
        do it now. */
-    if(!front_of_line && !dontenq && thd_current->state == STATE_RUNNING) {
+    if(!front_of_line && thd_current->state == STATE_RUNNING) {
         thd_current->state = STATE_READY;
         thd_add_to_runnable(thd_current, front_of_line);
 
         /* Make sure we have a thread, just in case we couldn't find anything
            above. */
-        if(thd == NULL || thd == thd_idle_thd)
-            thd = thd_current;
+        if(next_thd == NULL || next_thd == thd_idle_thd)
+            next_thd = thd_current;
+    }
+    else if(__predict_false(thd_current->state == STATE_POLLING)) {
+        thd_add_to_runnable(thd_current, front_of_line);
     }
 
     /* Didn't find one? Big problem here... */
-    if(thd == NULL) {
+    if(next_thd == NULL) {
         thd_pslist(printf);
         arch_panic("couldn't find a runnable thread");
     }
 
     /* We should now have a runnable thread, so remove it from the
        run queue and switch to it. */
-    thd_remove_from_runnable(thd);
-
-    thd_update_cpu_time(thd);
-
-    thd_current = thd;
-    _impure_ptr = &thd->thd_reent;
-    thd->state = STATE_RUNNING;
-
-    /* Make sure the thread hasn't underrun its stack */
-    if(thd_current->stack && thd_current->stack_size) {
-        if(CONTEXT_SP(thd_current->context) < (ptr_t)(thd_current->stack)) {
-            thd_pslist(printf);
-            thd_pslist_queue(printf);
-            assert_msg(0, "Thread stack underrun");
-        }
-    }
-
-    irq_set_context(&thd_current->context);
+    thd_schedule_inner(next_thd, now);
 }
 
 /* Temporary priority boosting function: call this from within an interrupt
@@ -750,24 +784,15 @@ void thd_schedule_next(kthread_t *thd) {
         thd_add_to_runnable(thd_current, 0);
     }
 
-    thd_remove_from_runnable(thd);
-
-    thd_update_cpu_time(thd);
-
-    thd_current = thd;
-    _impure_ptr = &thd->thd_reent;
-    thd_current->state = STATE_RUNNING;
-    irq_set_context(&thd_current->context);
+    thd_schedule_inner(thd, timer_ms_gettime64());
 }
 
 /* See kos/thread.h for description */
 irq_context_t *thd_choose_new(void) {
-    uint64_t now = timer_ms_gettime64();
-
     //printf("thd_choose_new() woken at %d\n", (uint32_t)now);
 
     /* Do any re-scheduling */
-    thd_schedule(0, now);
+    thd_schedule(false);
 
     /* Return the new IRQ context back to the caller */
     return &thd_current->context;
@@ -780,14 +805,11 @@ irq_context_t *thd_choose_new(void) {
    again until our next context switch (if any). For pre-empts, re-schedule
    threads, swap out contexts, and sleep. */
 static void thd_timer_hnd(irq_context_t *context) {
-    /* Get the system time */
-    uint64_t now = timer_ms_gettime64();
-
     (void)context;
 
     //printf("timer woke at %d\n", (uint32_t)now);
 
-    thd_schedule(0, now);
+    thd_schedule(false);
     timer_primary_wakeup(thd_sched_ms);
 }
 
@@ -798,12 +820,7 @@ static void thd_timer_hnd(irq_context_t *context) {
    threads. */
 void thd_sleep(unsigned int ms) {
     /* This should never happen. This should, perhaps, assert. */
-    if(thd_mode == THD_MODE_NONE) {
-        dbglog(DBG_WARNING, "thd_sleep called when threading not "
-               "initialized.\n");
-        timer_spin_sleep(ms);
-        return;
-    }
+    assert(thd_mode != THD_MODE_NONE);
 
     /* A timeout of zero is the same as thd_pass() and passing zero
        down to genwait_wait() causes bad juju. */
@@ -817,10 +834,11 @@ void thd_sleep(unsigned int ms) {
        sleep cases into a single case, which is nice for scheduling
        purposes. 0xffffffff definitely doesn't exist as an object, so we'll
        use that for straight up timeouts. */
-    genwait_wait((void *)0xffffffff, "thd_sleep", ms, NULL);
+    genwait_wait((void *)0xffffffff, "thd_sleep", ms);
 }
 
 /* Manually cause a re-schedule */
+__used
 void thd_pass(void) {
     /* Makes no sense inside int */
     if(irq_inside_int()) return;
@@ -831,12 +849,16 @@ void thd_pass(void) {
 
 /* Wait for a thread to exit */
 int thd_join(kthread_t *thd, void **value_ptr) {
-    int old, rv;
     kthread_t * t = NULL;
+    int rv;
 
     /* Can't scan for NULL threads */
     if(thd == NULL)
         return -1;
+
+    /* If you wait for yourself, you'll never leave */
+    if(thd == thd_current)
+        return -4;
 
     if((rv = irq_inside_int())) {
         dbglog(DBG_WARNING, "thd_join(%p) called inside an interrupt with "
@@ -845,7 +867,7 @@ int thd_join(kthread_t *thd, void **value_ptr) {
         return -1;
     }
 
-    old = irq_disable();
+    irq_disable_scoped();
 
     /* Search the thread list and make sure that this thread hasn't
        already died and been deallocated. */
@@ -865,7 +887,7 @@ int thd_join(kthread_t *thd, void **value_ptr) {
     else {
         if(thd->state != STATE_FINISHED) {
             /* Wait for the target thread to die */
-            genwait_wait(thd, "thd_join", 0, NULL);
+            genwait_wait(thd, "thd_join", 0);
         }
 
         /* Ok, we're all clear */
@@ -878,20 +900,19 @@ int thd_join(kthread_t *thd, void **value_ptr) {
         thd_destroy(thd);
     }
 
-    irq_restore(old);
     return rv;
 }
 
 /* Detach a joinable thread */
 int thd_detach(kthread_t *thd) {
-    int old, rv = 0;
     kthread_t * t = NULL;
+    int rv = 0;
 
     /* Can't scan for NULL threads */
     if(thd == NULL)
         return -1;
 
-    old = irq_disable();
+    irq_disable_scoped();
 
     /* Search the thread list and make sure that this thread hasn't
        already died and been deallocated. */
@@ -917,18 +938,52 @@ int thd_detach(kthread_t *thd) {
         thd->flags |= THD_DETACHED;
     }
 
-    irq_restore(old);
     return rv;
 }
 
 
 /*****************************************************************************/
+
+int thd_poll(thd_cb_t cb, void *data, unsigned long timeout_ms) {
+    kthread_t *thd = thd_current;
+    int ret;
+
+    assert(cb != NULL);
+    assert(!irq_inside_int());
+
+    irq_disable_scoped();
+
+    /* Try to poll once, just in case */
+    ret = cb(data);
+    if(ret)
+        return ret;
+
+    thd->state = STATE_POLLING;
+    thd->poll_cb = cb;
+    thd->wait_obj = data;
+
+    if (timeout_ms > 0)
+        thd->wait_timeout = timer_ms_gettime64() + timeout_ms;
+    else
+        thd->wait_timeout = 0;
+
+    return thd_block_now(&thd->context);
+}
+
+
+/*****************************************************************************/
 /* Retrieve / set thread label */
-const char *thd_get_label(kthread_t *thd) {
+const char *thd_get_label(const kthread_t *thd) {
+    if(!thd)
+        thd = thd_current;
+
     return thd->label;
 }
 
-void thd_set_label(kthread_t *thd, const char *restrict label) {
+void thd_set_label(kthread_t *__RESTRICT thd, const char *__RESTRICT label) {
+    if(!thd)
+        thd = thd_current;
+
     strncpy(thd->label, label, sizeof(thd->label) - 1);
 }
 
@@ -937,17 +992,30 @@ kthread_t *thd_get_current(void) {
     return thd_current;
 }
 
+kthread_t *thd_get_idle(void) {
+    return thd_idle_thd;
+}
+
 /* Retrieve / set thread pwd */
-const char *thd_get_pwd(kthread_t *thd) {
+const char *thd_get_pwd(const kthread_t *thd) {
+    if(!thd)
+        thd = thd_current;
+
     return thd->pwd;
 }
 
-void thd_set_pwd(kthread_t *thd, const char *restrict pwd) {
+void thd_set_pwd(kthread_t *__RESTRICT thd, const char *__RESTRICT pwd) {
+    if(!thd)
+        thd = thd_current;
+
     strncpy(thd->pwd, pwd, sizeof(thd->pwd) - 1);
 }
 
 int *thd_get_errno(kthread_t *thd) {
-    return &thd->thd_errno;
+    if(!thd)
+        thd = thd_current;
+
+    return &(__errno_r(&thd->thd_reent));
 }
 
 struct _reent *thd_get_reent(kthread_t *thd) {
@@ -955,11 +1023,18 @@ struct _reent *thd_get_reent(kthread_t *thd) {
 }
 
 uint64_t thd_get_cpu_time(kthread_t *thd) {
-    /* Check whether we should force an update immediately for accuracy. */
-    if(thd == thd_get_current())
-        thd_update_cpu_time(thd);
-
     return thd->cpu_time.total;
+}
+
+uint64_t thd_get_total_cpu_time(void) {
+    kthread_t *cur;
+    uint64_t retval = 0;
+
+    LIST_FOREACH(cur, &thd_list, t_list) {
+        retval += cur->cpu_time.total;
+    }
+
+    return retval;
 }
 
 /*****************************************************************************/
@@ -985,48 +1060,8 @@ int thd_set_hz(unsigned int hertz) {
         return -1;
 
     thd_sched_ms = 1000 / hertz;
+    thd_ageing_ms_log2 = log2_rup(thd_sched_ms * THD_AGEING_THRESHOLD);
 
-    return 0;
-}
-
-/* Delete a TLS key. Note that currently this doesn't prevent you from reusing
-   the key after deletion. This seems ok, as the pthreads standard states that
-   using the key after deletion results in "undefined behavior".
-   XXXX: This should really be in tls.c, but we need the list of threads to go
-   through, so it ends up here instead. */
-int kthread_key_delete(kthread_key_t key) {
-    int old = irq_disable();
-    kthread_t *cur;
-    kthread_tls_kv_t *i, *tmp;
-
-    /* Make sure the key is valid. */
-    if(key >= kthread_key_next() || key < 1) {
-        irq_restore(old);
-        errno = EINVAL;
-        return -1;
-    }
-
-    /* Make sure we can actually use free below. */
-    if(!malloc_irq_safe()) {
-        irq_restore(old);
-        errno = EPERM;
-        return -1;
-    }
-
-    /* Go through each thread searching for (and removing) the data. */
-    LIST_FOREACH(cur, &thd_list, t_list) {
-        LIST_FOREACH_SAFE(i, &cur->tls_list, kv_list, tmp) {
-            if(i->key == key) {
-                LIST_REMOVE(i, kv_list);
-                free(i);
-                break;
-            }
-        }
-    }
-
-    kthread_key_delete_destructor(key);
-
-    irq_restore(old);
     return 0;
 }
 
@@ -1035,7 +1070,29 @@ int kthread_key_delete(kthread_key_t key) {
 
 /* Init */
 int thd_init(void) {
-    kthread_t *kern, *reaper;
+    const kthread_attr_t kern_attr = {
+        .stack_size = THD_KERNEL_STACK_SIZE,
+        .stack_ptr  = (void *)_arch_mem_top - THD_KERNEL_STACK_SIZE,
+        .label      = "[kernel]"
+    };
+
+    const kthread_attr_t reaper_attr = {
+        .stack_size  = sizeof(thd_reaper_stack),
+        .stack_ptr   = thd_reaper_stack,
+        .prio        = 1,
+        .label       = "[reaper]",
+        .disable_tls = true
+    };
+
+    const kthread_attr_t idle_attr = {
+        .stack_size  = sizeof(thd_idle_stack),
+        .stack_ptr   = thd_idle_stack,
+        .prio        = PRIO_MAX + 1, /* disable ageing */
+        .label       = "[idle]",
+        .disable_tls = true
+    };
+
+    kthread_t *kern;
 
     /* Make sure we're not already running */
     if(thd_mode != THD_MODE_NONE)
@@ -1062,35 +1119,30 @@ int thd_init(void) {
     /* Reinitialize thread counter */
     thd_count = 0;
 
+    /* Set default HZ value */
+    thd_set_hz(THD_SCHED_HZ);
+
     /* Setup a kernel task for the currently running "main" thread */
-    kern = thd_create(0, NULL, NULL);
-    strcpy(kern->label, "[kernel]");
-    kern->state = STATE_RUNNING;
-
-    /* Initialize GBR register for Main Thread */
-    __builtin_set_thread_pointer((void*)kern->context.gbr);
-
-    /* De-scehdule the thread (it's STATE_RUNNING) */
-    thd_remove_from_runnable(kern);
-
-    /* Setup an idle task that is always ready to run, in case everyone
-       else is blocked on something. */
-    thd_idle_thd = thd_create(0, thd_idle_task, NULL);
-    strcpy(thd_idle_thd->label, "[idle]");
-    thd_set_prio(thd_idle_thd, PRIO_MAX);
-    thd_idle_thd->state = STATE_READY;
-
-    /* Set up a thread to reap old zombies */
-    sem_init(&thd_reap_sem, 0);
-    reaper = thd_create(0, thd_reaper, NULL);
-    strcpy(reaper->label, "[reaper]");
-    thd_set_prio(reaper, 1);
+    kern = thd_create_ex(&kern_attr, NULL, NULL);
+    if(!kern) {
+        dbglog(DBG_DEAD, "thd: failed to create kernel thread\n");
+        return -1;
+    }
 
     /* Main thread -- the kern thread */
     thd_current = kern;
-    irq_set_context(&kern->context);
+    thd_schedule_inner(kern, timer_ms_gettime64());
 
-    thd_update_cpu_time(thd_current);
+    /* Initialize tls */
+    arch_tls_init();
+
+    /* Setup an idle task that is always ready to run, in case everyone
+       else is blocked on something. */
+    thd_idle_thd = thd_create_ex(&idle_attr, thd_idle_task, NULL);
+
+    /* Set up a thread to reap old zombies */
+    sem_init(&thd_reap_sem, 0);
+    thd_create_ex(&reaper_attr, thd_reaper, NULL);
 
     /* Initialize thread sync primitives */
     genwait_init();
@@ -1115,7 +1167,8 @@ void thd_shutdown(void) {
 
     /* Kill remaining live threads */
     LIST_FOREACH_SAFE(cur, &thd_list, t_list, tmp) {
-        thd_destroy(cur);
+        if(cur->tid != 1)
+            thd_destroy(cur);
     }
 
     sem_destroy(&thd_reap_sem);

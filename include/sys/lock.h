@@ -1,10 +1,10 @@
 /* KallistiOS ##version##
 
-   lock_common.h
+   sys/lock.h
    Copyright (C) 2004 Megan Potter
 
-   This file is patched into the dc-chain newlib's <sys/lock.h>, by newlib.mk 
-   in \utils\dc-chain\scripts.
+   This file is patched into the kos-chain newlib's <sys/lock.h>, by newlib.mk
+   in \utils\kos-chain\scripts.
 */
 
 /** \file
@@ -18,6 +18,9 @@
 
 #ifndef __SYS_LOCK_H__
 #define __SYS_LOCK_H__
+
+#include <sys/cdefs.h>
+__BEGIN_DECLS
 
 /** \cond */
 
@@ -52,16 +55,17 @@ typedef __newlib_recursive_lock_t _LOCK_RECURSIVE_T;
 void __newlib_lock_init(__newlib_lock_t*);
 void __newlib_lock_close(__newlib_lock_t*);
 void __newlib_lock_acquire(__newlib_lock_t*);
-void __newlib_lock_try_acquire(__newlib_lock_t*);
+int __newlib_lock_try_acquire(__newlib_lock_t*);
 void __newlib_lock_release(__newlib_lock_t*);
 
 void __newlib_lock_init_recursive(__newlib_recursive_lock_t*);
 void __newlib_lock_close_recursive(__newlib_recursive_lock_t*);
 void __newlib_lock_acquire_recursive(__newlib_recursive_lock_t*);
-void __newlib_lock_try_acquire_recursive(__newlib_recursive_lock_t*);
+int __newlib_lock_try_acquire_recursive(__newlib_recursive_lock_t*);
 void __newlib_lock_release_recursive(__newlib_recursive_lock_t*);
 
 /** \endcond */
 
-#endif // __NEWLIB_LOCK_COMMON_H
+__END_DECLS
 
+#endif /* __SYS_LOCK_H__ */

@@ -15,14 +15,15 @@ XXX This probably belongs in something like libc...
 
 #include <kos/fs.h>
 #include <stdio.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <unistd.h>
 #include <errno.h>
 
 /* Copies a file from 'src' to 'dst'. The amount of the file
    actually copied without error is returned. */
-ssize_t fs_copy(const char * src, const char * dst) {
+ssize_t fs_copy(const char *src, const char *dst) {
     char    *buff;
     ssize_t left, total, r;
     file_t  fs, fd;
@@ -75,11 +76,11 @@ ssize_t fs_copy(const char * src, const char * dst) {
    memory (and must free it). The file size is returned, or -1
    on failure; on success, out_ptr is filled with the address
    of the loaded buffer. */
-ssize_t fs_load(const char * src, void ** out_ptr) {
+ssize_t fs_load(const char *src, void **out_ptr) {
     file_t  f;
-    void    * data;
-    void    * new_data;
-    uint8   * out;
+    void    *data;
+    void    *new_data;
+    uint8_t *out;
     ssize_t total, left, r;
 
     assert(out_ptr != NULL);
@@ -100,7 +101,7 @@ ssize_t fs_load(const char * src, void ** out_ptr) {
         return -1;
     }
 
-    out = (uint8 *)data;
+    out = (uint8_t *)data;
 
     /* Load the data */
     while(left > 0) {
@@ -179,4 +180,84 @@ ssize_t fs_path_append(char *dst, const char *src, size_t len) {
 
     /* Return the current length of the string, including the NUL terminator. */
     return (ssize_t)(dlen + slen + 1);
+}
+
+char *fs_normalize_path(const char *__restrict path, char *__restrict resolved) {
+    char temp_path[PATH_MAX];
+    char *token;
+    char *last_slash;
+    ssize_t len;
+
+    /* Check for invalid params. */
+    if(path == NULL || resolved == NULL) {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    /* Too big of a path? */
+    len = strlen(path);
+    if(len >= PATH_MAX) {
+        errno = ENAMETOOLONG;
+        return NULL;
+    }
+
+    /* Handle absolute path. */
+    if(path[0] == '/') {
+        strcpy(temp_path, path);
+    }
+    else {
+        /* Handle relative path: prepend current working directory. */
+        if(!getcwd(temp_path, PATH_MAX))
+            return NULL;
+
+        /* Check if appending will send us over. */
+        if(strlen(temp_path) + len + 1 >= PATH_MAX) {
+            errno = ENAMETOOLONG;
+            return NULL;
+        }
+
+        /* Now append relative path. */
+        strcat(temp_path, "/");
+        strcat(temp_path, path);
+    }
+
+    /* Initialize the resolved path. */
+    resolved[0] = '/';
+    resolved[1] = '\0';
+
+    /* Tokenize and look at each token. temp_path has the unprocessed path. */
+    token = strtok(temp_path, "/");
+    while(token != NULL) {
+        /* Check for overlong path */
+        if(strlen(resolved) + strlen(token) + 1 >= PATH_MAX) {
+            errno = ENAMETOOLONG;
+            return NULL;
+        }
+
+        if(strcmp(token, ".") == 0) {
+            /* Ignore "." */
+        }
+        else if(strcmp(token, "..") == 0) {
+            /* Remove the last component from resolved path. */
+            last_slash = strrchr(resolved, '/');
+
+            if(last_slash != NULL && last_slash != resolved)
+                *last_slash = '\0';
+            else
+                /* If there's no previous component, we stay at root. */
+                resolved[1] = '\0';
+        }
+        else {
+            /* Append a '/' if we don't already have one. */
+            if(resolved[strlen(resolved) - 1] != '/')
+                strcat(resolved, "/");
+
+            /* Append the token to the resolved path. */
+            strcat(resolved, token);
+        }
+
+        token = strtok(NULL, "/");
+    }
+
+    return resolved;
 }

@@ -5,6 +5,7 @@
 */
 
 #include <kos.h>
+#include <stdlib.h>
 #include <math.h>
 
 /*
@@ -55,7 +56,7 @@ float hsv;
 
 pvr_poly_hdr_t hdr[2];
 pvr_ptr_t txr[2];
-uint16 * txr_buf[2];
+uint16_t * txr_buf[2];
 int txr_cur;
 
 void plasma_init(void) {
@@ -72,7 +73,7 @@ void plasma_init(void) {
 }
 
 void plasma_drawtex(void) {
-    uint16  *vrout = (uint16 *)(txr_buf[txr_cur]);
+    uint16_t  *vrout = (uint16_t *)(txr_buf[txr_cur]);
     int x, y, p, q, r;
 
     xang++;
@@ -101,7 +102,7 @@ void plasma_drawtex(void) {
 
     // Switch these around to try out texture DMA
     pvr_txr_load(txr_buf[txr_cur], txr[txr_cur], 64 * 64 * 2);
-    // dcache_flush_range((uint32)txr_buf[txr_cur], 64*64*2);   // dcache flush is needed when using DMA
+    // dcache_flush_range((uint32_t)txr_buf[txr_cur], 64*64*2);   // dcache flush is needed when using DMA
     // pvr_txr_load_dma(txr_buf[txr_cur], txr[txr_cur], 64*64*2, 1, NULL, 0);
 }
 
@@ -125,7 +126,7 @@ void pvr_setup(void) {
     for(i = 0; i < 2; i++) {
         txr[i] = pvr_mem_malloc(64 * 64 * 2);
         memset(txr[i], 0, 64 * 64 * 2);
-        txr_buf[i] = memalign(32, 64 * 64 * 2);
+        txr_buf[i] = aligned_alloc(32, 64 * 64 * 2);
 
         pvr_poly_cxt_txr(&cxt, PVR_LIST_OP_POLY, PVR_TXRFMT_RGB565, 64, 64, txr[i], PVR_FILTER_BILINEAR);
         pvr_poly_compile(&hdr[i], &cxt);
@@ -139,8 +140,6 @@ void do_frame(void) {
     float r, g, b;
 
     vid_border_color(255, 0, 0);
-    pvr_wait_ready();
-    vid_border_color(0, 255, 0);
     pvr_scene_begin();
     pvr_list_begin(PVR_LIST_OP_POLY);
     pvr_prim(&hdr[txr_cur], sizeof(*hdr));

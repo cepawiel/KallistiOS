@@ -10,19 +10,21 @@
 #include <stdio.h>
 #include <navi/ide.h>
 #include <dc/g2bus.h>
+#include <kos/dbglog.h>
+#include <kos/thread.h>
 
 /*
    A *very* simple port-level ATA-IDE device driver. This was ported up
    from the _original_ KallistiOS =) (PC based)
  */
 
-static uint16 dd[256];          /* hard disk parameters, read from controller */
-static uint32 hd_cyls, hd_heads, hd_sects;          /* hard disk geometry */
+static uint16_t dd[256];          /* hard disk parameters, read from controller */
+static uint32_t hd_cyls, hd_heads, hd_sects;          /* hard disk geometry */
 
 
-static void ide_outp(int port, uint16 value, int size) {
+static void ide_outp(int port, uint16_t value, int size) {
     (void)size;
-    uint32 addr;
+    uint32_t addr;
 
     switch(port & 0xff0) {
         case 0x1f0:
@@ -36,13 +38,13 @@ static void ide_outp(int port, uint16 value, int size) {
             return;
     }
 
-    //printf("ide_outp %02x -> %04x(%08x)\n", value, port, addr);
+    /* printf("ide_outp %02x -> %04x(%08x)\n", value, port, addr); */
     g2_write_16(addr, value);
 }
 
-uint16 ide_inp(int port, int size) {
-    uint32 addr;
-    uint16 value;
+uint16_t ide_inp(int port, int size) {
+    uint32_t addr;
+    uint16_t value;
 
     switch(port & 0xff0) {
         case 0x1f0:
@@ -76,7 +78,7 @@ static void wait_controller(void) {
     int timeout = 1000;
 
     while((inp(0x1f7) & 0x80) && timeout) {
-        usleep(1 * 1000);
+        thd_sleep(1);
         timeout--;
     }
 
@@ -90,7 +92,7 @@ static void wait_data(void) {
     int timeout = 1000;
 
     while(!(inp(0x1f7) & 0x08) && timeout) {
-        usleep(1 * 1000);
+        thd_sleep(1);
         timeout--;
     }
 
@@ -101,7 +103,7 @@ static void wait_data(void) {
 }
 
 /* Reads a chunk of ascii out of the hd params table */
-static char *get_ascii(uint16 *in_data, uint32 off_start, uint32 off_end) {
+static char *get_ascii(uint16_t *in_data, uint32_t off_start, uint32_t off_end) {
     static char ret_val [255];
     unsigned loop;
     int loop1;
@@ -112,7 +114,7 @@ static char *get_ascii(uint16 *in_data, uint32 off_start, uint32 off_end) {
         ret_val [loop1++] = (char)(in_data [loop] % 256);   /* Get Low byte */
     }
 
-    // Now, go back and eliminate the blank spaces
+    /* Now, go back and eliminate the blank spaces */
     for(; (ret_val[loop1] < 'A' || ret_val[loop1] > 'z') && loop1 >= 0 ; loop1--)
         ret_val[loop1] = '\0';
 
@@ -120,12 +122,12 @@ static char *get_ascii(uint16 *in_data, uint32 off_start, uint32 off_end) {
 }
 
 /* Read n sectors from the hard disk using PIO mode */
-static int ide_read_chs(uint32 cyl, uint32 head, uint32 sector, uint32 numsects, uint8 *bufptr) {
+static int ide_read_chs(uint32_t cyl, uint32_t head, uint32_t sector, uint32_t numsects, uint8_t *bufptr) {
     int o;
-    uint16  *bufptr16 = (uint16*)bufptr;
+    uint16_t  *bufptr16 = (uint16_t *)bufptr;
 
-    //printf("reading C/H/S/Cnt %d/%d/%d/%d\n",
-    //  cyl, head, sector, numsects);
+    /** printf("reading C/H/S/Cnt %d/%d/%d/%d\n",
+        cyl, head, sector, numsects); */
 
     wait_controller();      /* wait for controller to be not busy */
 
@@ -139,7 +141,7 @@ static int ide_read_chs(uint32 cyl, uint32 head, uint32 sector, uint32 numsects,
     wait_data();            /* wait for data to be read */
 
     for(o = 0; o < 256; o++) {
-        /*if (inp(0x1f7) & 1) {
+        /*if(inp(0x1f7) & 1) {
             printf("as of %d, error code is %x/%x\n", o, inp(0x1f7), inp(0x1f1));
             return -1;
         } */
@@ -154,12 +156,12 @@ static int ide_read_chs(uint32 cyl, uint32 head, uint32 sector, uint32 numsects,
 }
 
 /* Write n sectors to the hard disk using PIO mode */
-static int ide_write_chs(uint32 cyl, uint32 head, uint32 sector, uint32 numsects, uint8 *bufptr) {
+static int ide_write_chs(uint32_t cyl, uint32_t head, uint32_t sector, uint32_t numsects, uint8_t *bufptr) {
     int o;
-    uint16  *bufptr16 = (uint16*)bufptr;
+    uint16_t  *bufptr16 = (uint16_t *)bufptr;
 
-    //printf("writing C/H/S/Cnt %d/%d/%d/%d\n",
-    //  cyl, head, sector, numsects);
+    /** printf("writing C/H/S/Cnt %d/%d/%d/%d\n",
+        cyl, head, sector, numsects); */
 
     wait_controller();      /* wait for controller to be not busy */
 
@@ -173,7 +175,7 @@ static int ide_write_chs(uint32 cyl, uint32 head, uint32 sector, uint32 numsects
     wait_data();            /* wait for data to be ready */
 
     for(o = 0; o < 256; o++) {
-        /* if (inp(0x1f7) & 1) {
+        /* if(inp(0x1f7) & 1) {
             printf("as of %d, error code is %x/%x\n", o, inp(0x1f7), inp(0x1f1));
             return -1;
         } */
@@ -189,27 +191,27 @@ static int ide_write_chs(uint32 cyl, uint32 head, uint32 sector, uint32 numsects
 
 /* Translate a linear sector address relative to the first of the partition
    to a CHS address suitable for feeding to the hard disk */
-static void linear_to_chs(uint32 linear, uint32 * cyl, uint32 * head, uint32 * sector) {
+static void linear_to_chs(uint32_t linear, uint32_t *cyl, uint32_t *head, uint32_t *sector) {
     *sector = linear % hd_sects + 1;
     *head = (linear / hd_sects) % hd_heads;
     *cyl = linear / (hd_sects * hd_heads);
 }
 
 /* Read n sectors from the hard disk using PIO mode */
-int ide_read(uint32 linear, uint32 numsects, void * bufptr) {
+int ide_read(uint32_t linear, uint32_t numsects, void *bufptr) {
     unsigned i;
-    uint32  cyl, head, sector;
+    uint32_t  cyl, head, sector;
 
     if(numsects > 1) {
         for(i = 0; i < numsects; i++) {
-            if(ide_read(linear + i, 1, ((uint8 *)bufptr) + i * 512) < 0)
+            if(ide_read(linear + i, 1, ((uint8_t *)bufptr) + i * 512) < 0)
                 return -1;
         }
     }
     else {
         linear_to_chs(linear, &cyl, &head, &sector);
 
-        if(ide_read_chs(cyl, head, sector, numsects, (uint8*)bufptr) < 0)
+        if(ide_read_chs(cyl, head, sector, numsects, (uint8_t *)bufptr) < 0)
             return -1;
     }
 
@@ -217,26 +219,26 @@ int ide_read(uint32 linear, uint32 numsects, void * bufptr) {
 }
 
 /* Write n sectors to the hard disk using PIO mode */
-int ide_write(uint32 linear, uint32 numsects, void *bufptr) {
+int ide_write(uint32_t linear, uint32_t numsects, void *bufptr) {
     unsigned i;
-    uint32  cyl, head, sector;
+    uint32_t  cyl, head, sector;
 
     if(numsects > 1) {
         for(i = 0; i < numsects; i++) {
-            if(ide_write(linear + i, 1, ((uint8 *)bufptr) + i * 512) < 0)
+            if(ide_write(linear + i, 1, ((uint8_t *)bufptr) + i * 512) < 0)
                 return -1;
         }
     }
     else {
         linear_to_chs(linear, &cyl, &head, &sector);
-        ide_write_chs(cyl, head, sector, numsects, (uint8*)bufptr);
+        ide_write_chs(cyl, head, sector, numsects, (uint8_t *)bufptr);
     }
 
     return 0;
 }
 
 /* Get the available space */
-uint32 ide_num_sectors(void) {
+uint32_t ide_num_sectors(void) {
     return hd_cyls * hd_heads * hd_sects;
 }
 
@@ -248,9 +250,9 @@ int ide_init(void) {
 
     /* Reset */
     outp(0x3f6, 0x0e);
-    usleep(10 * 1000);
+    thd_sleep(10);
     outp(0x3f6, 0x0a);
-    usleep(10 * 1000);
+    thd_sleep(10);
 
     wait_controller();
     outp(0x1f6, 0xa0);  /* get info on first drive. 0xb0 == 2nd */
@@ -275,5 +277,4 @@ int ide_init(void) {
 
 void ide_shutdown(void) {
 }
-
 
